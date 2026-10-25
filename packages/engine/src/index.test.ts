@@ -107,6 +107,53 @@ describe("legalMoves - pawn movement", () => {
     expect(moves).toContainEqual({ kind: "move", to: { x: 3, y: 8 } });
     expect(moves).toContainEqual({ kind: "move", to: { x: 5, y: 8 } });
   });
+  it("does not allow moving through a wall", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    state.players[0]!.position = { x: 4, y: 4 };
+    // Place horizontal wall at x:4, y:4 (blocks y:4 to y:5)
+    state.walls.push({ coord: { x: 4, y: 4 }, orientation: "horizontal" });
+
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // Alice should NOT be able to move Up to y:5
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 4, y: 5 } });
+    // But she can still move Down
+    expect(moves).toContainEqual({ kind: "move", to: { x: 4, y: 3 } });
+  });
+
+  it("does not allow jumping over an opponent if blocked by a wall behind them", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    state.players[0]!.position = { x: 4, y: 4 }; // Alice
+    state.players[1]!.position = { x: 4, y: 5 }; // Bob
+    // Place horizontal wall at x:4, y:5 (blocks y:5 to y:6)
+    state.walls.push({ coord: { x: 4, y: 5 }, orientation: "horizontal" });
+
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // Alice should NOT be able to jump to y:6
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 4, y: 6 } });
+    // But she can still diagonal jump left or right
+    expect(moves).toContainEqual({ kind: "move", to: { x: 3, y: 5 } });
+    expect(moves).toContainEqual({ kind: "move", to: { x: 5, y: 5 } });
+  });
+
+  it("does not allow diagonal jumping if the corner is blocked by a wall", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    state.players[0]!.position = { x: 4, y: 4 }; // Alice
+    state.players[1]!.position = { x: 4, y: 5 }; // Bob
+
+    // Block the jump behind Bob
+    state.walls.push({ coord: { x: 4, y: 5 }, orientation: "horizontal" });
+    // Block the corner to the right: vertical wall at x:4, y:4 (blocks x:4 to x:5 for y:4 to y:5)
+    state.walls.push({ coord: { x: 4, y: 4 }, orientation: "vertical" });
+
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // Alice cannot jump diagonally to {x: 5, y: 5} because the right corner is blocked
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 5, y: 5 } });
+    // But she CAN jump diagonally left to {x: 3, y: 5} (corner is clear)
+    expect(moves).toContainEqual({ kind: "move", to: { x: 3, y: 5 } });
+  });
 });
 
 describe("legalMoves - wall placements", () => {
@@ -164,6 +211,40 @@ describe("legalMoves - wall placements", () => {
     const validWall = {
       kind: "wall" as const,
       wall: { coord: { x: 6, y: 4 }, orientation: "horizontal" as const },
+    };
+    expect(moves).toContainEqual(validWall);
+  });
+
+  it("does not allow a wall that completely blocks the only path", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+
+    // 1. Put Alice at {x: 1, y: 1}
+    state.players[0]!.position = { x: 1, y: 1 };
+
+    // 2. Build 3 sides of a box around her:
+    // Bottom wall (blocks y:0 to y:1 for x:0 to x:1)
+    state.walls.push({ coord: { x: 0, y: 0 }, orientation: "horizontal" });
+    // Left wall (blocks x:0 to x:1 for y:1 to y:2)
+    state.walls.push({ coord: { x: 0, y: 1 }, orientation: "vertical" });
+    // Right wall (blocks x:1 to x:2 for y:0 to y:1)
+    state.walls.push({ coord: { x: 1, y: 0 }, orientation: "vertical" });
+
+    // Alice is now in a U-shape, and can only move UP.
+    const moves = legalMoves(state);
+
+    // 3. The final wall to close the box (blocks y:1 to y:2 for x:1 to x:2)
+    const trapWall = {
+      kind: "wall" as const,
+      wall: { coord: { x: 1, y: 1 }, orientation: "horizontal" as const },
+    };
+
+    // The trap wall should NOT be in the list of moves!
+    expect(moves).not.toContainEqual(trapWall);
+
+    // But a wall further away should be valid
+    const validWall = {
+      kind: "wall" as const,
+      wall: { coord: { x: 2, y: 1 }, orientation: "horizontal" as const },
     };
     expect(moves).toContainEqual(validWall);
   });

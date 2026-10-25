@@ -16,6 +16,110 @@ function getPlayerAt(state: GameState, coord: Coord) {
   );
 }
 
+//Helper: checks if a coordinate is a winning square for a specific player.
+function isGoal(state: GameState, playerId: string, coord: Coord): boolean {
+  const { boardSize, goalCondition } = state.config;
+  const playerIndex = state.players.findIndex((p) => p.id === playerId);
+
+  if (goalCondition === "opposite-edge") {
+    // Assuming 2 players for now: P0 goes to top, P1 goes to bottom
+    if (playerIndex === 0) return coord.y === boardSize - 1;
+    if (playerIndex === 1) return coord.y === 0;
+    // For 4 players, we'll handle it later (e.g., P1 goes to right edge, etc.)
+  }
+
+  // Fallback for now
+  return false;
+}
+
+function isBlockedByWall(state: GameState, from: Coord, to: Coord): boolean {
+  for (const wall of state.walls) {
+    const { x, y } = wall.coord;
+
+    if (wall.orientation === "horizontal") {
+      // A horizontal wall blocks vertical movement
+      if (from.x === to.x && from.x >= x && from.x <= x + 1) {
+        const wallY = y + 1;
+        if (
+          (from.y === wallY && to.y === wallY - 1) ||
+          (from.y === wallY - 1 && to.y === wallY)
+        ) {
+          return true;
+        }
+      }
+    } else {
+      // A vertical wall blocks horizontal movement
+      if (from.y === to.y && from.y >= y && from.y <= y + 1) {
+        const wallX = x + 1;
+        if (
+          (from.x === wallX && to.x === wallX - 1) ||
+          (from.x === wallX - 1 && to.x === wallX)
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+//This function takes a player's start position and determines if they can reach their...
+//...goal without moving through walls or other players.
+function canReachGoal(state: GameState, playerId: string): boolean {
+  const player = state.players.find((p) => p.id === playerId)!;
+  const { boardSize } = state.config;
+
+  const queue: Coord[] = [player.position];
+  const visited = new Set<string>();
+  visited.add(`${player.position.x},${player.position.y}`);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    // If we reached the goal, we win!
+    if (isGoal(state, playerId, current)) {
+      return true;
+    }
+
+    // Check all 4 directions
+    const dirs = [
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of dirs) {
+      const next: Coord = { x: current.x + dir.dx, y: current.y + dir.dy };
+
+      // Skip if off board
+      if (
+        next.x < 0 ||
+        next.x >= boardSize ||
+        next.y < 0 ||
+        next.y >= boardSize
+      )
+        continue;
+
+      // Skip if already visited
+      if (visited.has(`${next.x},${next.y}`)) continue;
+
+      // Skip if blocked by wall
+      if (isBlockedByWall(state, current, next)) continue;
+
+      // Skip if another player is there (for pathfinding, we assume players are obstacles)
+      // In real Quoridor, you can jump, but for the pathfinding check, if you can't even step around, it's blocked.
+      // Actually, for pathfinding, we should treat other players as walls to be safe.
+      if (getPlayerAt(state, next)) continue;
+
+      visited.add(`${next.x},${next.y}`);
+      queue.push(next);
+    }
+  }
+
+  return false; // No path found
+}
+
 function isWallPlacementValid(state: GameState, newWall: Wall): boolean {
   const { boardSize } = state.config;
   const { x, y } = newWall.coord;
@@ -61,6 +165,22 @@ function isWallPlacementValid(state: GameState, newWall: Wall): boolean {
     }
   }
 
+  // 5. Pathfinding check
+  if (state.config.mustNotBlockPath) {
+    // Temporarily add the wall
+    state.walls.push(newWall);
+
+    // Check if *any* player is now trapped
+    const isTrapped = state.players.some(
+      (p) => !p.eliminated && !canReachGoal(state, p.id),
+    );
+
+    // Remove the temporary wall
+    state.walls.pop();
+
+    if (isTrapped) return false;
+  }
+
   return true;
 }
 
@@ -77,18 +197,20 @@ export function legalMoves(state: GameState): Move[] {
     { dx: 1, dy: 0 }, // Right
     { dx: -1, dy: 0 }, // Left
   ];
-  //Pawn movements
+  // Pawn movements
   for (const dir of directions) {
     const adjacent: Coord = { x: x + dir.dx, y: y + dir.dy };
 
     // 1. If it's off the board, skip
     if (!isOnBoard(adjacent, boardSize)) continue;
 
+    // NEW: Check if a wall blocks the path to the adjacent square
+    if (isBlockedByWall(state, currentPlayer.position, adjacent)) continue;
+
     const adjacentPlayer = getPlayerAt(state, adjacent);
 
     // 2. If it's empty, it's a valid move!
     if (!adjacentPlayer) {
-      // TODO: Add wall check here later!
       moves.push({ kind: "move", to: adjacent });
       continue;
     }
@@ -99,14 +221,13 @@ export function legalMoves(state: GameState): Move[] {
     // Can we land directly behind them?
     if (
       isOnBoard(jumpOver, boardSize) &&
-      !getPlayerAt(state, jumpOver) // TODO: Add wall check here later!
+      !getPlayerAt(state, jumpOver) &&
+      !isBlockedByWall(state, adjacent, jumpOver) // NEW: Check wall between opponent and jumpOver
     ) {
       moves.push({ kind: "move", to: jumpOver });
     } else {
       // 4. The square behind is blocked/off-board. Check diagonal jumps.
       if (state.config.allowDiagonalJumps) {
-        // If we are moving Up/Down, check Left/Right for diagonals
-        // If we are moving Left/Right, check Up/Down for diagonals
         const diagonalDirs =
           dir.dx === 0
             ? [
@@ -123,8 +244,19 @@ export function legalMoves(state: GameState): Move[] {
             x: adjacent.x + dDir.dx,
             y: adjacent.y + dDir.dy,
           };
-          if (isOnBoard(diagonal, boardSize) && !getPlayerAt(state, diagonal)) {
-            // TODO: Add wall check here later!
+
+          // The corner square we step through to go around the opponent
+          const corner: Coord = {
+            x: x + dDir.dx,
+            y: y + dDir.dy,
+          };
+
+          if (
+            isOnBoard(diagonal, boardSize) &&
+            !getPlayerAt(state, diagonal) &&
+            !isBlockedByWall(state, currentPlayer.position, corner) && // NEW
+            !isBlockedByWall(state, corner, diagonal) // NEW
+          ) {
             moves.push({ kind: "move", to: diagonal });
           }
         }
