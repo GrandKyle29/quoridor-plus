@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createGame, legalMoves } from "./index";
+import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
 
 const classicConfig: GameConfig = {
@@ -247,5 +247,55 @@ describe("legalMoves - wall placements", () => {
       wall: { coord: { x: 2, y: 1 }, orientation: "horizontal" as const },
     };
     expect(moves).toContainEqual(validWall);
+  });
+});
+
+describe("applyMove", () => {
+  it("throws an error for an illegal move", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    // Alice is at {x: 4, y: 0}. Moving to y:2 is illegal (jump over nothing)
+    expect(() => {
+      applyMove(state, { kind: "move", to: { x: 4, y: 2 } });
+    }).toThrow("Illegal move");
+  });
+
+  it("updates position and advances the turn on a pawn move", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    // Alice moves Up
+    const nextState = applyMove(state, { kind: "move", to: { x: 4, y: 1 } });
+
+    expect(nextState.players[0]!.position).toEqual({ x: 4, y: 1 });
+    expect(nextState.turnIndex).toBe(1); // It is now Bob's turn
+    expect(state.players[0]!.position).toEqual({ x: 4, y: 0 }); // Original state is untouched!
+  });
+
+  it("places a wall and decrements wallsRemaining", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    const wallMove = {
+      kind: "wall" as const,
+      wall: { coord: { x: 0, y: 0 }, orientation: "horizontal" as const },
+    };
+
+    const nextState = applyMove(state, wallMove);
+
+    expect(nextState.walls.length).toBe(1);
+    expect(nextState.players[0]!.wallsRemaining).toBe(9);
+    expect(nextState.turnIndex).toBe(1); // It is now Bob's turn
+  });
+
+  it("declares a winner when a player reaches the goal edge", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+
+    // Manually move Alice near the top edge
+    state.players[0]!.position = { x: 4, y: 7 };
+    // Move Bob out of the way so he doesn't block the winning square
+    state.players[1]!.position = { x: 0, y: 0 };
+
+    // Alice moves to y: 8 (the winning edge)
+    const nextState = applyMove(state, { kind: "move", to: { x: 4, y: 8 } });
+
+    expect(nextState.status).toBe("finished");
+    expect(nextState.winner).toBe("p0"); // Alice's ID
+    expect(nextState.turnIndex).toBe(0); // Turn did not advance
   });
 });
