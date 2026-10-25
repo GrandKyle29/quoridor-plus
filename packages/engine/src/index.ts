@@ -5,3 +5,4 @@ export * from "./types";
 export * from "./config";
 export * from "./state";
 export * from "./game";
+export * from "./moves";
