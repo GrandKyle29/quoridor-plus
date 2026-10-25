@@ -1,0 +1,21 @@
+.placed-wall {
+  background-color: #b45309; /* Wood brown */
+  border: 1px solid #78350f; /* Add a dark brown border */
+  border-radius: 2px;
+  box-shadow:
+    inset 0px 0px 4px rgba(0, 0, 0, 0.5),
+    0px 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.ghost-wall {
+  background-color: transparent; /* Invisible by default */
+  transition: background-color 0.2s;
+  cursor: pointer;
+  z-index: 20;
+  border-radius: 2px;
+}
+
+.ghost-wall:hover {
+  background-color: rgba(134, 239, 172, 0.8); /* Glows green on hover */
+}

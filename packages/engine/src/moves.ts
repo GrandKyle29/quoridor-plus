@@ -142,9 +142,9 @@ function isWallPlacementValid(state: GameState, newWall: Wall): boolean {
 
     // 3. Crossing check (H crosses V)
     if (
+      existing.orientation !== newWall.orientation &&
       existing.coord.x === x &&
-      existing.coord.y === y &&
-      existing.orientation !== newWall.orientation
+      existing.coord.y === y
     ) {
       return false;
     }

@@ -170,34 +170,28 @@ describe("legalMoves - wall placements", () => {
     expect(moves).not.toContainEqual(badHWall);
   });
 
-  it("does not allow overlapping walls", () => {
+  it("does not allow walls to cross in the middle", () => {
     const state = createGame(classicConfig, ["Alice", "Bob"]);
-    state.players[0]!.position = { x: 4, y: 4 };
-    // Manually add a wall to the state
+    state.players[0]!.position = { x: 0, y: 0 };
+
+    // Place a horizontal wall at 4,4
     state.walls.push({ coord: { x: 4, y: 4 }, orientation: "horizontal" });
 
     const moves = legalMoves(state);
 
-    // Exact same wall should be illegal
-    const exactWall = {
-      kind: "wall" as const,
-      wall: { coord: { x: 4, y: 4 }, orientation: "horizontal" as const },
-    };
-    expect(moves).not.toContainEqual(exactWall);
-
-    // Crossing wall should be illegal
+    // V(4,4) forms a + shape. ILLEGAL.
     const crossWall = {
       kind: "wall" as const,
       wall: { coord: { x: 4, y: 4 }, orientation: "vertical" as const },
     };
     expect(moves).not.toContainEqual(crossWall);
 
-    // Partial overlap should be illegal (shifted by 1 on x)
-    const partialWall = {
+    // V(6,4) touches the end of H(4,4). LEGAL.
+    const cornerWall = {
       kind: "wall" as const,
-      wall: { coord: { x: 5, y: 4 }, orientation: "horizontal" as const },
+      wall: { coord: { x: 6, y: 4 }, orientation: "vertical" as const },
     };
-    expect(moves).not.toContainEqual(partialWall);
+    expect(moves).toContainEqual(cornerWall);
   });
 
   it("allows valid walls near existing ones", () => {
