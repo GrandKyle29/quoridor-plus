@@ -44,10 +44,10 @@ describe("createGame", () => {
     const state = createGame(classicConfig, ["P1", "P2", "P3", "P4"]);
 
     expect(state.players.length).toBe(4);
-    expect(state.players[0]?.position).toEqual({ x: 4, y: 0 }); // bottom
-    expect(state.players[1]?.position).toEqual({ x: 0, y: 4 }); // left
-    expect(state.players[2]?.position).toEqual({ x: 4, y: 8 }); // top
-    expect(state.players[3]?.position).toEqual({ x: 8, y: 4 }); // right
+    expect(state.players[0]?.position).toEqual({ x: 4, y: 0 }); // P0: bottom
+    expect(state.players[1]?.position).toEqual({ x: 4, y: 8 }); // P1: top
+    expect(state.players[2]?.position).toEqual({ x: 0, y: 4 }); // P2: left
+    expect(state.players[3]?.position).toEqual({ x: 8, y: 4 }); // P3: right
   });
 });
 
@@ -106,6 +106,20 @@ describe("legalMoves - pawn movement", () => {
     // Alice should be able to jump diagonally to {x: 3, y: 8} or {x: 5, y: 8}
     expect(moves).toContainEqual({ kind: "move", to: { x: 3, y: 8 } });
     expect(moves).toContainEqual({ kind: "move", to: { x: 5, y: 8 } });
+  });
+  it("does not allow diagonal jumps if a straight jump is available", () => {
+    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    state.players[0]!.position = { x: 4, y: 4 }; // Alice
+    state.players[1]!.position = { x: 5, y: 4 }; // Bob (to the right)
+
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // Alice should be able to jump straight over Bob to {6,4}
+    expect(moves).toContainEqual({ kind: "move", to: { x: 6, y: 4 } });
+
+    // Alice should NOT be able to jump diagonally to {5,5} or {5,3}
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 5, y: 5 } });
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 5, y: 3 } });
   });
   it("does not allow moving through a wall", () => {
     const state = createGame(classicConfig, ["Alice", "Bob"]);

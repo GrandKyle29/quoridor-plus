@@ -1,5 +1,6 @@
 import type { GameState } from "./state";
 import type { Coord, Move, Wall } from "./types";
+import { isPlayerGoal } from "./game"; // Add this import at the top
 
 // Helper: Is this coordinate actually on the board?
 function isOnBoard(coord: Coord, boardSize: number): boolean {
@@ -18,18 +19,8 @@ function getPlayerAt(state: GameState, coord: Coord) {
 
 //Helper: checks if a coordinate is a winning square for a specific player.
 function isGoal(state: GameState, playerId: string, coord: Coord): boolean {
-  const { boardSize, goalCondition } = state.config;
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
-
-  if (goalCondition === "opposite-edge") {
-    // Assuming 2 players for now: P0 goes to top, P1 goes to bottom
-    if (playerIndex === 0) return coord.y === boardSize - 1;
-    if (playerIndex === 1) return coord.y === 0;
-    // For 4 players, we'll handle it later (e.g., P1 goes to right edge, etc.)
-  }
-
-  // Fallback for now
-  return false;
+  return isPlayerGoal(state, playerIndex, coord);
 }
 
 function isBlockedByWall(state: GameState, from: Coord, to: Coord): boolean {
@@ -110,7 +101,7 @@ function canReachGoal(state: GameState, playerId: string): boolean {
       // Skip if another player is there (for pathfinding, we assume players are obstacles)
       // In real Quoridor, you can jump, but for the pathfinding check, if you can't even step around, it's blocked.
       // Actually, for pathfinding, we should treat other players as walls to be safe.
-      if (getPlayerAt(state, next)) continue;
+      //if (getPlayerAt(state, next)) continue;
 
       visited.add(`${next.x},${next.y}`);
       queue.push(next);

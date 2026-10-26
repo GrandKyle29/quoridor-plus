@@ -7,36 +7,32 @@ export function getStartPositions(count: number, size: number): Coord[] {
   const mid = Math.floor(size / 2);
   const max = size - 1;
 
-  // 2 players: classic bottom and top
   if (count === 2) {
     return [
-      { x: mid, y: 0 },
-      { x: mid, y: max },
+      { x: mid, y: 0 }, // P0: Bottom
+      { x: mid, y: max }, // P1: Top
     ];
   }
 
-  // 4 players: all four edges
   if (count === 4) {
     return [
-      { x: mid, y: 0 }, // bottom
-      { x: 0, y: mid }, // left
-      { x: mid, y: max }, // top
-      { x: max, y: mid }, // right
+      { x: mid, y: 0 }, // P0: Bottom
+      { x: mid, y: max }, // P1: Top
+      { x: 0, y: mid }, // P2: Left
+      { x: max, y: mid }, // P3: Right
     ];
   }
 
-  // 3 players: bottom, top-left, top-right
   if (count === 3) {
     return [
-      { x: mid, y: 0 }, // bottom
-      { x: 0, y: max }, // top-left
-      { x: max, y: max }, // top-right
+      { x: mid, y: 0 }, // Bottom
+      { x: 0, y: max }, // Top-left
+      { x: max, y: max }, // Top-right
     ];
   }
 
   throw new Error("Player count must be 2, 3, or 4");
 }
-
 export function createGame(
   config: GameConfig,
   playerNames: string[],
@@ -83,20 +79,34 @@ function copyState(state: GameState): GameState {
     winner: state.winner,
   };
 }
-
-// Helper to check if a player reached their goal
-function checkWin(state: GameState, player: Player): boolean {
+export function isPlayerGoal(
+  state: GameState,
+  playerIndex: number,
+  coord: Coord,
+): boolean {
   const { boardSize, goalCondition } = state.config;
-  const playerIndex = state.players.findIndex((p) => p.id === player.id);
+  if (goalCondition !== "opposite-edge") return false;
 
-  if (goalCondition === "opposite-edge") {
-    if (playerIndex === 0) return player.position.y === boardSize - 1; // P0 goes Up
-    if (playerIndex === 1) return player.position.y === 0; // P1 goes Down
-    // We will expand this for 4-player modes later
+  const playerCount = state.players.length;
+
+  if (playerCount === 2) {
+    if (playerIndex === 0) return coord.y === boardSize - 1;
+    if (playerIndex === 1) return coord.y === 0;
+  } else if (playerCount === 4) {
+    if (playerIndex === 0) return coord.y === boardSize - 1; // Bottom -> Top
+    if (playerIndex === 1) return coord.y === 0; // Top -> Bottom
+    if (playerIndex === 2) return coord.x === boardSize - 1; // Left -> Right
+    if (playerIndex === 3) return coord.x === 0; // Right -> Left
   }
+
   return false;
 }
 
+// Update checkWin to use the helper
+function checkWin(state: GameState, player: Player): boolean {
+  const playerIndex = state.players.findIndex((p) => p.id === player.id);
+  return isPlayerGoal(state, playerIndex, player.position);
+}
 export function applyMove(state: GameState, move: Move): GameState {
   // 1. Is it this player's turn, and is the game active?
   if (state.status !== "active") throw new Error("Game is not active");

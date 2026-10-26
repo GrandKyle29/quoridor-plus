@@ -1,24 +1,56 @@
 import React from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
+import type { GameState, Move } from "@quoridor/engine";
 import "./GameBoard.css";
 
-export function GameBoard() {
-  const { state, playMove, resetGame } = useGame();
+interface GameBoardProps {
+  playerNames: string[];
+  vsBot: boolean;
+  onlineState?: GameState | null;
+  onlinePlayMove?: (move: Move) => void;
+  onlineResetGame?: () => void;
+  localPlayerId?: "p0" | "p1";
+}
+
+export function GameBoard({
+  playerNames,
+  vsBot,
+  onlineState,
+  onlinePlayMove,
+  onlineResetGame,
+  localPlayerId,
+}: GameBoardProps) {
+  const localGame = useGame(playerNames, vsBot);
+
+  // Use online state if available, otherwise use local state
+  const state = onlineState || localGame.state;
+  const playMove = onlinePlayMove || localGame.playMove;
+  const resetGame = onlineResetGame || localGame.resetGame;
+
+  // Check if it's this player's turn. (If localPlayerId is undefined, it's a local game, so always true)
+  const isMyTurn = localPlayerId
+    ? state?.players[state.turnIndex]?.id === localPlayerId
+    : true;
+
+  if (!state) return null;
   const { boardSize } = state.config;
 
+  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"]; // Red, Blue, Yellow, Green
+
   const currentMoves = legalMoves(state);
-  const validPawnMoves = currentMoves
-    .filter((m) => m.kind === "move")
-    .map((m) => m.to);
-  const validWallMoves = currentMoves
-    .filter((m) => m.kind === "wall")
-    .map((m) => m.wall);
+
+  // ONLY show valid moves if it is my turn
+  const validPawnMoves = isMyTurn
+    ? currentMoves.filter((m) => m.kind === "move").map((m) => m.to)
+    : [];
+  const validWallMoves = isMyTurn
+    ? currentMoves.filter((m) => m.kind === "wall").map((m) => m.wall)
+    : [];
 
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
 
-  // This generates the 17-column/row grid template: "40px 10px 40px 10px ... 40px"
   const gridTemplate = Array.from({ length: boardSize }, (_, i) =>
     i < boardSize - 1 ? "40px 10px" : "40px",
   ).join(" ");
@@ -47,13 +79,78 @@ export function GameBoard() {
           </button>
         </div>
       ) : (
-        <div>
-          <h2 style={{ marginBottom: "4px" }}>
-            Turn: {state.players[state.turnIndex]?.name}
-          </h2>
-          <p style={{ marginTop: "0px", color: "#ccc", marginBottom: "20px" }}>
-            Walls Left: {state.players[state.turnIndex]?.wallsRemaining}
-          </p>
+        <div
+          style={{
+            marginBottom: "20px",
+            display: "flex",
+            gap: "20px",
+            alignItems: "flex-start",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                margin: "0 0 10px 0",
+                color: isMyTurn ? "#4ade80" : "#ccc",
+              }}
+            >
+              {isMyTurn
+                ? "Your Turn"
+                : `Waiting for ${state.players[state.turnIndex]?.name}...`}
+            </h2>
+            <button
+              onClick={resetGame}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Reset Game
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px" }}>
+            {state.players.map((p, i) => (
+              <div
+                key={p.id}
+                style={{
+                  backgroundColor: "#374151",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border:
+                    state.turnIndex === i
+                      ? "2px solid #4ade80"
+                      : "2px solid transparent",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: PLAYER_COLORS[i],
+                    }}
+                  />
+                  <strong>{p.name}</strong>
+                </div>
+                <div style={{ fontSize: "14px", color: "#ccc" }}>
+                  Walls: {p.wallsRemaining}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -102,7 +199,7 @@ export function GameBoard() {
                       height: "30px",
                       borderRadius: "50%",
                       backgroundColor:
-                        player.id === "p0" ? "#ef4444" : "#3b82f6",
+                        PLAYER_COLORS[parseInt(player.id.replace("p", ""))],
                       boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
                       zIndex: 5,
                     }}
@@ -121,8 +218,8 @@ export function GameBoard() {
                 key={`placed-h-${i}`}
                 className="placed-wall"
                 style={{
-                  gridColumn: `${wall.coord.x * 2 + 1} / span 3`, // Spans Tile, Gap, Tile
-                  gridRow: (boardSize - 1 - wall.coord.y) * 2, // The gap row
+                  gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
+                  gridRow: (boardSize - 1 - wall.coord.y) * 2,
                 }}
               />
             );
@@ -133,7 +230,6 @@ export function GameBoard() {
                 className="placed-wall"
                 style={{
                   gridColumn: wall.coord.x * 2 + 2,
-                  // CHANGE THIS LINE: (was + 1, now - 1)
                   gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
                 }}
               />
@@ -163,7 +259,6 @@ export function GameBoard() {
                 onClick={() => playMove({ kind: "wall", wall })}
                 style={{
                   gridColumn: wall.coord.x * 2 + 2,
-                  // CHANGE THIS LINE: (was + 1, now - 1)
                   gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
                 }}
               />

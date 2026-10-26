@@ -6,3 +6,4 @@ export * from "./config";
 export * from "./state";
 export * from "./game";
 export * from "./moves";
+export * from "./ai";

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createGame, applyMove } from "@quoridor/engine";
+import { useState, useEffect } from "react";
+import { createGame, applyMove, getBestMove } from "@quoridor/engine";
 import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
 const classicConfig: GameConfig = {
@@ -16,9 +16,10 @@ const classicConfig: GameConfig = {
   turnOrder: "clockwise",
 };
 
-export function useGame() {
+// Notice vsBot is the second parameter here!
+export function useGame(playerNames: string[], vsBot: boolean = false) {
   const [state, setState] = useState<GameState>(() =>
-    createGame(classicConfig, ["Alice", "Bob"]),
+    createGame(classicConfig, playerNames),
   );
 
   const playMove = (move: Move) => {
@@ -29,11 +30,26 @@ export function useGame() {
       console.error("Illegal move attempted", e);
     }
   };
-  // ADD THIS FUNCTION
+
   const resetGame = () => {
-    setState(createGame(classicConfig, ["Alice", "Bob"]));
+    setState(createGame(classicConfig, playerNames));
   };
 
-  // RETURN IT
+  // Trigger the AI
+  useEffect(() => {
+    if (vsBot && state.status === "active" && state.turnIndex === 1) {
+      const timer = setTimeout(() => {
+        try {
+          const move = getBestMove(state);
+          if (move) playMove(move);
+        } catch (err) {
+          console.error("AI crashed!", err);
+        }
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [state, vsBot]);
+
   return { state, playMove, resetGame };
 }
