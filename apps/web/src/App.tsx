@@ -8,6 +8,7 @@ export default function App() {
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [useWood, setUseWood] = useState(false);
 
   const myId = getMyPlayerId();
 
