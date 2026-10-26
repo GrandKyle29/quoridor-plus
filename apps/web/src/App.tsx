@@ -5,9 +5,7 @@ import { getMyPlayerId } from "./utils";
 
 export default function App() {
   const navigate = useNavigate();
-  const [playerCount, setPlayerCount] = useState(2);
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
-  const [vsBot, setVsBot] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
 
