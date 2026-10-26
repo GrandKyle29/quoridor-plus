@@ -5,6 +5,8 @@ body {
   color: white;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: center; /* Change this to flex-start on mobile if you want it to start at the top */
   min-height: 100vh;
+  padding: 10px; /* Add some padding so it doesn't touch the edges */
+  box-sizing: border-box;
 }

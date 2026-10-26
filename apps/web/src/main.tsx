@@ -11,7 +11,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route path="/" element={<App />} />
         {/* THIS IS THE CRUCIAL FIX: */}
-        <Route path="/game/:roomCode" element={<GameScreen />} />
+        <Route path="/game" element={<GameScreen />} /> {/* Local Game */}
+        <Route path="/game/:roomCode" element={<GameScreen />} />{" "}
+        {/* Online Game */}
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,

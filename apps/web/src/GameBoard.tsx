@@ -51,9 +51,7 @@ export function GameBoard({
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
 
-  const gridTemplate = Array.from({ length: boardSize }, (_, i) =>
-    i < boardSize - 1 ? "40px 10px" : "40px",
-  ).join(" ");
+  //const gridTemplate = Array.from({ length: boardSize }, (_, i) =>  i < boardSize - 1 ? "40px 10px" : "40px",).join(" ");
 
   return (
     <div>
@@ -163,6 +161,14 @@ export function GameBoard({
           padding: "16px",
           borderRadius: "8px",
           position: "relative",
+        }}
+      >
+              <div
+        className="board-container"
+        style={{
+          // @ts-ignore (TypeScript doesn't like custom CSS vars in style objects)
+          "--cols": boardSize - 1,
+          "--rows": boardSize - 1,
         }}
       >
         {/* 1. The Tiles & Players */}

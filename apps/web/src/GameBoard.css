@@ -19,3 +19,25 @@
 .ghost-wall:hover {
   background-color: rgba(134, 239, 172, 0.8); /* Glows green on hover */
 }
+
+.board-container {
+  display: grid;
+  /* This dynamically calculates tile size based on screen width. Min 20px, max 40px */
+  --tile-size: clamp(20px, 8vw, 40px);
+  --gap-size: clamp(4px, 1.5vw, 10px);
+
+  grid-template-columns: repeat(
+      var(--cols),
+      var(--tile-size) var(--gap-size)
+    ) var(--tile-size);
+  grid-template-rows: repeat(var(--rows), var(--tile-size) var(--gap-size)) var(
+      --tile-size
+    );
+
+  background-color: #4b5563;
+  padding: clamp(8px, 2vw, 16px);
+  border-radius: 8px;
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto; /* Add a scrollbar if it still barely doesn't fit */
+}

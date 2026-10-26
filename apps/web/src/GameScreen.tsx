@@ -9,6 +9,18 @@ export function GameScreen() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 1. If there is no room code, it's a local game!
+  if (!roomCode) {
+    const playerNames = location.state?.playerNames;
+    const vsBot = location.state?.vsBot || false;
+
+    if (!playerNames) {
+      navigate("/");
+      return null;
+    }
+    return <GameBoard playerNames={playerNames} vsBot={vsBot} />;
+  }
+
   const [role, setRole] = useState<"host" | "guest" | "loading" | "error">(
     "loading",
   );
