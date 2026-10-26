@@ -18,7 +18,13 @@ export function GameScreen() {
       navigate("/");
       return null;
     }
-    return <GameBoard playerNames={playerNames} vsBot={vsBot} />;
+    return (
+      <GameBoard
+        playerNames={playerNames}
+        vsBot={vsBot}
+        localPlayerId={vsBot ? "p0" : undefined} // Lock the board for the bot!
+      />
+    );
   }
 
   const [role, setRole] = useState<"host" | "guest" | "loading" | "error">(
