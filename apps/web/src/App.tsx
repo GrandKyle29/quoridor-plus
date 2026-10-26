@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
-import { createGame } from "@quoridor/engine";
-import type { GameConfig } from "@quoridor/engine";
+import { getMyPlayerId } from "./utils";
 
 export default function App() {
   const navigate = useNavigate();
@@ -11,6 +10,8 @@ export default function App() {
   const [vsBot, setVsBot] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+
+  const myId = getMyPlayerId();
 
   const handleNameChange = (index: number, value: string) => {
     const newNames = [...names];
@@ -22,7 +23,6 @@ export default function App() {
     const finalNames = names
       .slice(0, playerCount)
       .map((name, i) => (name.trim() === "" ? `Player ${i + 1}` : name.trim()));
-
     navigate("/game", { state: { playerNames: finalNames, vsBot } });
   };
 
@@ -34,34 +34,14 @@ export default function App() {
     }
 
     setIsCreating(true);
-
-    // Generate a 4-letter room code (e.g., "XKCD")
     const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-
-    const config: GameConfig = {
-      schemaVersion: 1,
-      boardSize: 9,
-      minPlayers: 2,
-      maxPlayers: 2,
-      startingWalls: 10,
-      wallPool: "per-player",
-      goalCondition: "opposite-edge",
-      allowDiagonalJumps: true,
-      mustNotBlockPath: true,
-      elimination: false,
-      turnOrder: "clockwise",
-    };
-
-    // Create the game with the Host's name and a placeholder for the Guest
-    const initialState = createGame(config, [
-      hostName,
-      "Waiting for opponent...",
-    ]);
 
     const { error } = await supabase.from("rooms").insert({
       id: roomCode,
       host_name: hostName,
-      game_state: initialState,
+      host_id: myId,
+      status: "lobby",
+      players: [{ id: myId, name: hostName }],
     });
 
     setIsCreating(false);
@@ -70,9 +50,38 @@ export default function App() {
       console.error(error);
       alert("Error creating room. Check console.");
     } else {
-      // ADD THIS: { state: { isHost: true } }
-      navigate(`/game/${roomCode}`, { state: { isHost: true } });
+      navigate(`/game/${roomCode}`);
     }
+  };
+
+  const handleJoinRoom = async () => {
+    if (joinCode.length !== 4) return alert("Please enter a 4-letter code");
+
+    const guestName = names[0]?.trim() || "Guest";
+    if (guestName === "Guest") {
+      alert("Please enter your name first!");
+      return;
+    }
+
+    // Check if room exists and isn't full
+    const { data: room, error } = await supabase
+      .from("rooms")
+      .select("*")
+      .eq("id", joinCode)
+      .single();
+    if (error || !room) return alert("Room not found!");
+
+    const currentPlayers = room.players || [];
+    if (currentPlayers.length >= 2) return alert("Room is full!");
+
+    // Add ourselves to the players array
+    const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
+    await supabase
+      .from("rooms")
+      .update({ players: newPlayers })
+      .eq("id", joinCode);
+
+    navigate(`/game/${joinCode}`);
   };
 
   return (
@@ -82,92 +91,22 @@ export default function App() {
 
       <div style={{ marginBottom: "20px" }}>
         <label style={{ display: "block", marginBottom: "8px" }}>
-          Number of Players:
+          Your Name:
         </label>
-        <button
-          onClick={() => {
-            setPlayerCount(2);
-          }}
+        <input
+          type="text"
+          placeholder="Enter name"
+          value={names[0]}
+          onChange={(e) => handleNameChange(0, e.target.value)}
           style={{
-            padding: "8px 16px",
-            marginRight: "8px",
-            backgroundColor: playerCount === 2 ? "#3b82f6" : "#4b5563",
-            color: "white",
-            border: "none",
+            padding: "8px",
+            width: "100%",
+            boxSizing: "border-box",
             borderRadius: "4px",
-            cursor: "pointer",
-          }}
-        >
-          2 Players
-        </button>
-        <button
-          onClick={() => {
-            setPlayerCount(4);
-            setVsBot(false); // Turn off bot for 4 players
-          }}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: playerCount === 4 ? "#3b82f6" : "#4b5563",
-            color: "white",
             border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
           }}
-        >
-          4 Players
-        </button>
+        />
       </div>
-
-      <div style={{ marginBottom: "20px" }}>
-        {Array.from({ length: playerCount }).map((_, i) => (
-          <div key={i} style={{ marginBottom: "10px" }}>
-            <input
-              type="text"
-              placeholder={`Player ${i + 1} Name`}
-              value={names[i]}
-              onChange={(e) => handleNameChange(i, e.target.value)}
-              style={{
-                padding: "8px",
-                width: "100%",
-                boxSizing: "border-box",
-                borderRadius: "4px",
-                border: "none",
-              }}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: "20px" }}>
-        <label style={{ opacity: playerCount === 4 ? 0.5 : 1 }}>
-          <input
-            type="checkbox"
-            checked={vsBot && playerCount === 2}
-            onChange={(e) => setVsBot(e.target.checked)}
-            disabled={playerCount === 4}
-            style={{ marginRight: "8px" }}
-          />
-          Play against a Bot (2 Players only)
-        </label>
-      </div>
-
-      <button
-        onClick={handleStartGame}
-        style={{
-          padding: "12px",
-          width: "100%",
-          backgroundColor: "#4ade80",
-          color: "#1f2937",
-          fontSize: "18px",
-          fontWeight: "bold",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-          marginBottom: "10px",
-        }}
-      >
-        Start Local Game
-      </button>
 
       <button
         onClick={handleCreateOnlineRoom}
@@ -182,10 +121,12 @@ export default function App() {
           border: "none",
           borderRadius: "4px",
           cursor: isCreating ? "not-allowed" : "pointer",
+          marginBottom: "30px",
         }}
       >
         {isCreating ? "Creating Room..." : "Create Online Room"}
       </button>
+
       <div
         style={{
           marginTop: "30px",
@@ -210,10 +151,7 @@ export default function App() {
             }}
           />
           <button
-            onClick={() => {
-              if (joinCode.length === 4) navigate(`/game/${joinCode}`);
-              else alert("Please enter a 4-letter code");
-            }}
+            onClick={handleJoinRoom}
             style={{
               padding: "10px 20px",
               backgroundColor: "#eab308",

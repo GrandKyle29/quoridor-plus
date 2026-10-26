@@ -1,210 +1,142 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import { useOnlineGame } from "./useOnlineGame";
 import { GameBoard } from "./GameBoard";
+import { WaitingRoom } from "./WaitingRoom";
+import { getMyPlayerId } from "./utils";
 
 export function GameScreen() {
   const { roomCode } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const myId = getMyPlayerId();
 
-  // 1. If there is no room code, it's a local game!
-  if (!roomCode) {
-    const playerNames = location.state?.playerNames;
-    const vsBot = location.state?.vsBot || false;
-
-    if (!playerNames) {
-      navigate("/");
-      return null;
-    }
-    return (
-      <GameBoard
-        playerNames={playerNames}
-        vsBot={vsBot}
-        localPlayerId={vsBot ? "p0" : undefined} // Lock the board for the bot!
-      />
-    );
-  }
-
-  const [role, setRole] = useState<"host" | "guest" | "loading" | "error">(
-    "loading",
-  );
-  const [guestName, setGuestName] = useState("");
-  const [hostName, setHostName] = useState("");
-
-  // If we just came from the lobby, we are the host.
-  const isHost =
-    location.state?.isHost ||
-    sessionStorage.getItem(`host_${roomCode}`) === "true";
+  const [room, setRoom] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!roomCode) return;
 
-    // If we know we are the host, save it so refreshing doesn't break the game
-    if (isHost) {
-      sessionStorage.setItem(`host_${roomCode}`, "true");
-      setRole("host");
-      return;
-    }
-
-    // If we aren't the host, we must be a guest. Fetch the room to see if we can join.
+    // Fetch room data
     supabase
       .from("rooms")
-      .select("host_name, guest_name")
+      .select("*")
       .eq("id", roomCode)
       .single()
       .then(({ data, error }) => {
         if (error || !data) {
-          setRole("error");
+          setLoading(false);
           return;
         }
-        setHostName(data.host_name);
-
-        // If the guest slot is empty, show the join screen
-        if (!data.guest_name) {
-          setRole("guest");
-        } else {
-          // If the guest slot is full, we are the guest returning.
-          setRole("host");
-        }
+        setRoom(data);
+        setLoading(false);
       });
-  }, [roomCode, isHost]);
 
-  const joinAsGuest = async () => {
-    if (!guestName.trim() || !roomCode) return;
+    // Listen to any room changes
+    const channel = supabase
+      .channel(`room-${roomCode}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rooms",
+          filter: `id=eq.${roomCode}`,
+        },
+        (payload) => setRoom(payload.new),
+      )
+      .subscribe();
 
-    const { data } = await supabase
-      .from("rooms")
-      .select("game_state")
-      .eq("id", roomCode)
-      .single();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomCode]);
 
-    if (data) {
-      // Update the game state with the guest's name
-      const newState = { ...data.game_state };
-      newState.players[1].name = guestName;
+  // We only call the game hook if we are actually playing
+  const { state, playMove, resetOnlineGame } = useOnlineGame(
+    room?.status === "playing" ? roomCode || "" : "",
+  );
 
-      const { error } = await supabase
-        .from("rooms")
-        .update({ guest_name: guestName, game_state: newState })
-        .eq("id", roomCode);
-
-      if (error) {
-        alert("Failed to join room");
-      } else {
-        setRole("host"); // Now we are in the game
-      }
-    }
-  };
-
-  // We only call useOnlineGame once we know we are in the game
-  const { state, playMove, resetOnlineGame } = useOnlineGame(roomCode || "");
-
-  if (role === "loading")
+  if (loading)
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
         Loading...
       </div>
     );
-  if (role === "error")
+  if (!room)
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
-        Room not found!{" "}
-        <button onClick={() => navigate("/")}>Back to Lobby</button>
+        Room not found! <button onClick={() => navigate("/")}>Back</button>
       </div>
     );
 
-  if (role === "guest") {
+  // Find who I am in this room
+  const meIndex = room.players.findIndex((p: any) => p.id === myId);
+  const isHost = room.host_id === myId;
+
+  // If we are in the lobby, show the waiting room
+  if (room.status === "lobby") {
+    // If we are not in the player list, we are a spectator (for now, kick them out)
+    if (meIndex === -1) {
+      return (
+        <div
+          style={{ color: "white", textAlign: "center", marginTop: "100px" }}
+        >
+          Game has started or room is full.
+        </div>
+      );
+    }
+    return <WaitingRoom roomCode={roomCode!} isHost={isHost} myId={myId} />;
+  }
+
+  // If we are playing, show the board
+  if (room.status === "playing" && state) {
+    const localPlayerId =
+      meIndex === 0 ? "p0" : meIndex === 1 ? "p1" : undefined;
+
     return (
-      <div
-        style={{
-          maxWidth: "400px",
-          margin: "0 auto",
-          textAlign: "center",
-          marginTop: "100px",
-          color: "white",
-        }}
-      >
-        <h2>Joining Room: {roomCode}</h2>
-        <p>Host: {hostName}</p>
-        <input
-          type="text"
-          placeholder="Enter your name"
-          value={guestName}
-          onChange={(e) => setGuestName(e.target.value)}
+      <div>
+        <div
           style={{
-            padding: "8px",
-            width: "100%",
-            marginBottom: "10px",
-            borderRadius: "4px",
-            border: "none",
-            boxSizing: "border-box",
+            position: "absolute",
+            top: "16px",
+            left: "16px",
+            color: "white",
           }}
-        />
+        >
+          Room: <strong>{roomCode}</strong>
+        </div>
         <button
-          onClick={joinAsGuest}
+          onClick={() => navigate("/")}
           style={{
-            padding: "12px",
-            width: "100%",
-            backgroundColor: "#4ade80",
-            color: "#1f2937",
-            fontWeight: "bold",
-            border: "none",
+            position: "absolute",
+            top: "16px",
+            right: "16px",
+            padding: "8px",
+            backgroundColor: "transparent",
+            color: "white",
+            border: "1px solid white",
             borderRadius: "4px",
             cursor: "pointer",
           }}
         >
-          Join Game
+          Leave
         </button>
+        <GameBoard
+          playerNames={state.players.map((p: any) => p.name)}
+          vsBot={false}
+          onlineState={state}
+          onlinePlayMove={playMove}
+          onlineResetGame={resetOnlineGame}
+          localPlayerId={localPlayerId}
+        />
       </div>
     );
   }
 
-  if (!state)
-    return (
-      <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
-        Loading game state...
-      </div>
-    );
-
   return (
-    <div>
-      <div
-        style={{
-          position: "absolute",
-          top: "16px",
-          left: "16px",
-          color: "white",
-        }}
-      >
-        Room Code: <strong>{roomCode}</strong> (Share this!)
-      </div>
-      <button
-        onClick={() => navigate("/")}
-        style={{
-          position: "absolute",
-          top: "16px",
-          right: "16px",
-          padding: "8px",
-          backgroundColor: "transparent",
-          color: "white",
-          border: "1px solid white",
-          borderRadius: "4px",
-          cursor: "pointer",
-        }}
-      >
-        Leave
-      </button>
-
-      <GameBoard
-        playerNames={state.players.map((p) => p.name)}
-        vsBot={false}
-        onlineState={state}
-        onlinePlayMove={playMove}
-        onlineResetGame={resetOnlineGame}
-        localPlayerId={isHost ? "p0" : "p1"}
-      />
+    <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
+      Syncing game...
     </div>
   );
 }
