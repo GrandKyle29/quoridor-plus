@@ -1,4 +1,3 @@
-//import React from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
 import type { GameState, Move } from "@quoridor/engine";
@@ -23,12 +22,10 @@ export function GameBoard({
 }: GameBoardProps) {
   const localGame = useGame(playerNames, vsBot);
 
-  // Use online state if available, otherwise use local state
   const state = onlineState || localGame.state;
   const playMove = onlinePlayMove || localGame.playMove;
   const resetGame = onlineResetGame || localGame.resetGame;
 
-  // Check if it's this player's turn. (If localPlayerId is undefined, it's a local game, so always true)
   const isMyTurn = localPlayerId
     ? state?.players[state.turnIndex]?.id === localPlayerId
     : true;
@@ -36,11 +33,10 @@ export function GameBoard({
   if (!state) return null;
   const { boardSize } = state.config;
 
-  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"]; // Red, Blue, Yellow, Green
+  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"];
 
   const currentMoves = legalMoves(state);
 
-  // ONLY show valid moves if it is my turn
   const validPawnMoves = isMyTurn
     ? currentMoves.filter((m) => m.kind === "move").map((m) => m.to)
     : [];
@@ -50,8 +46,6 @@ export function GameBoard({
 
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
-
-  //const gridTemplate = Array.from({ length: boardSize }, (_, i) =>  i < boardSize - 1 ? "40px 10px" : "40px",).join(" ");
 
   return (
     <div>
@@ -83,6 +77,7 @@ export function GameBoard({
             display: "flex",
             gap: "20px",
             alignItems: "flex-start",
+            flexWrap: "wrap", // Added so it wraps nicely on mobile
           }}
         >
           <div>
@@ -153,20 +148,9 @@ export function GameBoard({
       )}
 
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: gridTemplate,
-          gridTemplateRows: gridTemplate,
-          backgroundColor: "#4b5563",
-          padding: "16px",
-          borderRadius: "8px",
-          position: "relative",
-        }}
-      >
-              <div
         className="board-container"
         style={{
-          // @ts-ignore (TypeScript doesn't like custom CSS vars in style objects)
+          // @ts-ignore (TypeScript doesn't like custom CSS vars)
           "--cols": boardSize - 1,
           "--rows": boardSize - 1,
         }}
@@ -201,8 +185,8 @@ export function GameBoard({
                 {player && (
                   <div
                     style={{
-                      width: "30px",
-                      height: "30px",
+                      width: "70%",
+                      height: "70%",
                       borderRadius: "50%",
                       backgroundColor:
                         PLAYER_COLORS[parseInt(player.id.replace("p", ""))],
