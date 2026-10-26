@@ -17,13 +17,6 @@ export default function App() {
     setNames(newNames);
   };
 
-  const handleStartGame = () => {
-    const finalNames = names
-      .slice(0, playerCount)
-      .map((name, i) => (name.trim() === "" ? `Player ${i + 1}` : name.trim()));
-    navigate("/game", { state: { playerNames: finalNames, vsBot } });
-  };
-
   const handleCreateOnlineRoom = async () => {
     const hostName = names[0]?.trim() || "Host";
     if (hostName === "Host") {
@@ -61,7 +54,6 @@ export default function App() {
       return;
     }
 
-    // Check if room exists and isn't full
     const { data: room, error } = await supabase
       .from("rooms")
       .select("*")
@@ -72,7 +64,6 @@ export default function App() {
     const currentPlayers = room.players || [];
     if (currentPlayers.length >= 2) return alert("Room is full!");
 
-    // Add ourselves to the players array
     const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
     await supabase
       .from("rooms")
