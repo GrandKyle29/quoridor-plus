@@ -1,23 +1,43 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
-import { useOnlineGame } from "./useOnlineGame";
 import { GameBoard } from "./GameBoard";
 import { WaitingRoom } from "./WaitingRoom";
 import { getMyPlayerId } from "./utils";
+import { applyMove } from "@quoridor/engine";
+import type { Move } from "@quoridor/engine";
 
 export function GameScreen() {
   const { roomCode } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const myId = getMyPlayerId();
 
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // 1. Handle Local Game (No Room Code)
+  if (!roomCode) {
+    const playerNames = location.state?.playerNames;
+    const vsBot = location.state?.vsBot || false;
+    if (!playerNames) {
+      navigate("/");
+      return null;
+    }
+    return (
+      <GameBoard
+        playerNames={playerNames}
+        vsBot={vsBot}
+        localPlayerId={vsBot ? "p0" : undefined}
+      />
+    );
+  }
+
+  // 2. Handle Online Game
   useEffect(() => {
     if (!roomCode) return;
 
-    // Fetch room data
+    // Fetch initial room state
     supabase
       .from("rooms")
       .select("*")
@@ -32,7 +52,7 @@ export function GameScreen() {
         setLoading(false);
       });
 
-    // Listen to any room changes
+    // Listen to ALL updates to this room
     const channel = supabase
       .channel(`room-${roomCode}`)
       .on(
@@ -52,10 +72,28 @@ export function GameScreen() {
     };
   }, [roomCode]);
 
-  // We only call the game hook if we are actually playing
-  const { state, playMove, resetOnlineGame } = useOnlineGame(
-    room?.status === "playing" ? roomCode || "" : "",
-  );
+  const playMove = async (move: Move) => {
+    if (!room?.game_state) return;
+    try {
+      const nextState = applyMove(room.game_state, move);
+      setRoom({ ...room, game_state: nextState }); // Optimistic UI
+      await supabase
+        .from("rooms")
+        .update({ game_state: nextState })
+        .eq("id", roomCode);
+    } catch (e) {
+      console.error("Illegal move", e);
+    }
+  };
+
+  const resetOnlineGame = async () => {
+    if (!room?.game_state) return;
+    // Just reset status to lobby and clear game_state
+    await supabase
+      .from("rooms")
+      .update({ status: "lobby", game_state: null })
+      .eq("id", roomCode);
+  };
 
   if (loading)
     return (
@@ -70,27 +108,25 @@ export function GameScreen() {
       </div>
     );
 
-  // Find who I am in this room
-  const meIndex = room.players.findIndex((p: any) => p.id === myId);
+  const meIndex = room.players?.findIndex((p: any) => p.id === myId) ?? -1;
   const isHost = room.host_id === myId;
 
-  // If we are in the lobby, show the waiting room
+  // If in Lobby, show Waiting Room
   if (room.status === "lobby") {
-    // If we are not in the player list, we are a spectator (for now, kick them out)
     if (meIndex === -1) {
       return (
         <div
           style={{ color: "white", textAlign: "center", marginTop: "100px" }}
         >
-          Game has started or room is full.
+          Game has already started or room is full.
         </div>
       );
     }
-    return <WaitingRoom roomCode={roomCode!} isHost={isHost} myId={myId} />;
+    return <WaitingRoom room={room} isHost={isHost} myId={myId} />;
   }
 
-  // If we are playing, show the board
-  if (room.status === "playing" && state) {
+  // If Playing, show the Board
+  if (room.status === "playing" && room.game_state) {
     const localPlayerId =
       meIndex === 0 ? "p0" : meIndex === 1 ? "p1" : undefined;
 
@@ -123,9 +159,9 @@ export function GameScreen() {
           Leave
         </button>
         <GameBoard
-          playerNames={state.players.map((p: any) => p.name)}
+          playerNames={room.game_state.players.map((p: any) => p.name)}
           vsBot={false}
-          onlineState={state}
+          onlineState={room.game_state}
           onlinePlayMove={playMove}
           onlineResetGame={resetOnlineGame}
           localPlayerId={localPlayerId}
@@ -134,9 +170,5 @@ export function GameScreen() {
     );
   }
 
-  return (
-    <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
-      Syncing game...
-    </div>
-  );
+  return null;
 }

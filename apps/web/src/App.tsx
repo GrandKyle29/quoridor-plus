@@ -77,6 +77,28 @@ export default function App() {
     <div style={{ maxWidth: "400px", margin: "0 auto" }}>
       <h1>Quoridor Plus</h1>
       <h2>Game Lobby</h2>
+      <button
+        onClick={() => {
+          const botName = names[0]?.trim() || "Player";
+          navigate("/game", {
+            state: { playerNames: [botName, "Bot"], vsBot: true },
+          });
+        }}
+        style={{
+          padding: "12px",
+          width: "100%",
+          backgroundColor: "#4ade80",
+          color: "#1f2937",
+          fontSize: "18px",
+          fontWeight: "bold",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          marginBottom: "20px",
+        }}
+      >
+        Play Local Game (vs Bot)
+      </button>
 
       <div style={{ marginBottom: "20px" }}>
         <label style={{ display: "block", marginBottom: "8px" }}>

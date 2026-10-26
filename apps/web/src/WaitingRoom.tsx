@@ -1,51 +1,17 @@
-import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { createGame } from "@quoridor/engine";
 import type { GameConfig } from "@quoridor/engine";
 
 export function WaitingRoom({
-  roomCode,
+  room,
   isHost,
   myId,
 }: {
-  roomCode: string;
+  room: any;
   isHost: boolean;
   myId: string;
 }) {
-  const [room, setRoom] = useState<any>(null);
-
-  useEffect(() => {
-    // Fetch initial
-    supabase
-      .from("rooms")
-      .select("*")
-      .eq("id", roomCode)
-      .single()
-      .then(({ data }) => setRoom(data));
-
-    // Listen for changes (people joining)
-    const channel = supabase
-      .channel(`room-${roomCode}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "rooms",
-          filter: `id=eq.${roomCode}`,
-        },
-        (payload) => setRoom(payload.new),
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roomCode]);
-
   const startGame = async () => {
-    if (!room) return;
-
     const playerNames = room.players.map((p: any) => p.name);
 
     const config: GameConfig = {
@@ -70,16 +36,14 @@ export function WaitingRoom({
         status: "playing",
         game_state: initialState,
       })
-      .eq("id", roomCode);
+      .eq("id", room.id);
   };
 
-  if (!room) return <div>Loading...</div>;
-
   return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
+    <div style={{ textAlign: "center", marginTop: "50px", color: "white" }}>
       <h2>Waiting Room</h2>
       <h1 style={{ fontSize: "48px", letterSpacing: "4px", color: "#4ade80" }}>
-        {roomCode}
+        {room.id}
       </h1>
       <p>Share this code with your friends!</p>
 
@@ -89,6 +53,8 @@ export function WaitingRoom({
           padding: "20px",
           backgroundColor: "#374151",
           borderRadius: "8px",
+          maxWidth: "300px",
+          marginInline: "auto",
         }}
       >
         <h3>Players ({room.players.length}/2)</h3>
@@ -120,7 +86,9 @@ export function WaitingRoom({
           {room.players.length < 2 ? "Waiting for players..." : "Start Game"}
         </button>
       ) : (
-        <p>Waiting for the host to start the game...</p>
+        <p style={{ color: "#ccc" }}>
+          Waiting for the host to start the game...
+        </p>
       )}
     </div>
   );
