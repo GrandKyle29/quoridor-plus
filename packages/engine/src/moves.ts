@@ -245,8 +245,8 @@ export function legalMoves(state: GameState): Move[] {
           if (
             isOnBoard(diagonal, boardSize) &&
             !getPlayerAt(state, diagonal) &&
-            // DELETE THIS LINE: !isBlockedByWall(state, currentPlayer.position, corner) &&
-            !isBlockedByWall(state, corner, diagonal)
+            !isBlockedByWall(state, adjacent, diagonal) && // NEW: Check wall between opponent and diagonal
+            !isBlockedByWall(state, corner, diagonal) // Check wall between corner and diagonal
           ) {
             moves.push({ kind: "move", to: diagonal });
           }
