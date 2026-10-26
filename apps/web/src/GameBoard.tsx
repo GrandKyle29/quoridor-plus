@@ -1,4 +1,4 @@
-import React from "react";
+//import React from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
 import type { GameState, Move } from "@quoridor/engine";
