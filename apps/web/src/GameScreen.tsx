@@ -33,11 +33,10 @@ export function GameScreen() {
     );
   }
 
-  // 2. Handle Online Game
+  // 2. Online Game Setup
   useEffect(() => {
     if (!roomCode) return;
 
-    // Fetch initial room state
     supabase
       .from("rooms")
       .select("*")
@@ -52,7 +51,6 @@ export function GameScreen() {
         setLoading(false);
       });
 
-    // Listen to ALL updates to this room
     const channel = supabase
       .channel(`room-${roomCode}`)
       .on(
@@ -72,11 +70,54 @@ export function GameScreen() {
     };
   }, [roomCode]);
 
+  // 3. The Leave Room Logic
+  const leaveRoom = async (isExplicitLeave = true) => {
+    if (!room || !roomCode) return;
+
+    const newPlayers = room.players.filter((p: any) => p.id !== myId);
+
+    if (newPlayers.length === 0) {
+      // Room is empty, delete it
+      await supabase.from("rooms").delete().eq("id", roomCode);
+    } else {
+      // If host leaves, promote next player. If game is playing, reset to lobby.
+      const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
+      const newStatus = room.status === "playing" ? "lobby" : room.status;
+      const newState = room.status === "playing" ? null : room.game_state;
+
+      await supabase
+        .from("rooms")
+        .update({
+          players: newPlayers,
+          host_id: newHostId,
+          status: newStatus,
+          game_state: newState,
+        })
+        .eq("id", roomCode);
+    }
+
+    if (isExplicitLeave) navigate("/");
+  };
+
+  // 4. Handle Browser Close / Refresh
+  useEffect(() => {
+    const handleUnload = () => {
+      // Note: Async requests might not finish before the tab closes.
+      // This is a "best effort" attempt without using a full Presence server.
+      if (room && roomCode) {
+        leaveRoom(false);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [room, roomCode]); // Depend on room so we have the latest state
+
+  // 5. Play Move (Online)
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-      setRoom({ ...room, game_state: nextState }); // Optimistic UI
+      setRoom({ ...room, game_state: nextState });
       await supabase
         .from("rooms")
         .update({ game_state: nextState })
@@ -88,7 +129,6 @@ export function GameScreen() {
 
   const resetOnlineGame = async () => {
     if (!room?.game_state) return;
-    // Just reset status to lobby and clear game_state
     await supabase
       .from("rooms")
       .update({ status: "lobby", game_state: null })
@@ -104,28 +144,37 @@ export function GameScreen() {
   if (!room)
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
-        Room not found! <button onClick={() => navigate("/")}>Back</button>
+        Room closed! <button onClick={() => navigate("/")}>Back</button>
       </div>
     );
 
   const meIndex = room.players?.findIndex((p: any) => p.id === myId) ?? -1;
-  const isHost = room.host_id === myId;
 
-  // If in Lobby, show Waiting Room
-  if (room.status === "lobby") {
-    if (meIndex === -1) {
-      return (
-        <div
-          style={{ color: "white", textAlign: "center", marginTop: "100px" }}
-        >
-          Game has already started or room is full.
-        </div>
-      );
-    }
-    return <WaitingRoom room={room} isHost={isHost} myId={myId} />;
+  // If we are not in the player list (e.g., we left but the state didn't update), kick out
+  if (meIndex === -1) {
+    return (
+      <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
+        You left this room.{" "}
+        <button onClick={() => navigate("/")}>Back to Lobby</button>
+      </div>
+    );
   }
 
-  // If Playing, show the Board
+  const isHost = room.host_id === myId;
+
+  // --- Render Waiting Room ---
+  if (room.status === "lobby") {
+    return (
+      <WaitingRoom
+        room={room}
+        isHost={isHost}
+        myId={myId}
+        leaveRoom={leaveRoom}
+      />
+    );
+  }
+
+  // --- Render Game Board ---
   if (room.status === "playing" && room.game_state) {
     const localPlayerId =
       meIndex === 0 ? "p0" : meIndex === 1 ? "p1" : undefined;
@@ -143,7 +192,7 @@ export function GameScreen() {
           Room: <strong>{roomCode}</strong>
         </div>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => leaveRoom(true)}
           style={{
             position: "absolute",
             top: "16px",

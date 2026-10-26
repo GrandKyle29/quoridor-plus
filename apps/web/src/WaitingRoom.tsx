@@ -2,14 +2,17 @@ import { supabase } from "./supabase";
 import { createGame } from "@quoridor/engine";
 import type { GameConfig } from "@quoridor/engine";
 
+// Add leaveRoom to the props!
 export function WaitingRoom({
   room,
   isHost,
   myId,
+  leaveRoom,
 }: {
   room: any;
   isHost: boolean;
   myId: string;
+  leaveRoom: () => void;
 }) {
   const startGame = async () => {
     const playerNames = room.players.map((p: any) => p.name);
@@ -81,15 +84,33 @@ export function WaitingRoom({
             border: "none",
             borderRadius: "4px",
             cursor: room.players.length < 2 ? "not-allowed" : "pointer",
+            marginBottom: "20px",
           }}
         >
           {room.players.length < 2 ? "Waiting for players..." : "Start Game"}
         </button>
       ) : (
-        <p style={{ color: "#ccc" }}>
+        <p style={{ color: "#ccc", marginBottom: "20px" }}>
           Waiting for the host to start the game...
         </p>
       )}
+
+      {/* NEW: Leave Button */}
+      <div>
+        <button
+          onClick={leaveRoom}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: "#ef4444",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          Leave Room
+        </button>
+      </div>
     </div>
   );
 }
