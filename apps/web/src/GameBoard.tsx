@@ -9,7 +9,8 @@ interface GameBoardProps {
   onlineState?: GameState | null;
   onlinePlayMove?: (move: Move) => void;
   onlineResetGame?: () => void;
-  localPlayerId?: "p0" | "p1";
+  localPlayerId?: "p0" | "p1" | "p2" | "p3";
+  useWood?: boolean;
 }
 
 export function GameBoard({
@@ -19,6 +20,7 @@ export function GameBoard({
   onlinePlayMove,
   onlineResetGame,
   localPlayerId,
+  useWood = false,
 }: GameBoardProps) {
   const localGame = useGame(playerNames, vsBot);
 
@@ -33,7 +35,7 @@ export function GameBoard({
   if (!state) return null;
   const { boardSize } = state.config;
 
-  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"];
+  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"]; // Red, Blue, Yellow, Green
 
   const currentMoves = legalMoves(state);
 
@@ -77,7 +79,7 @@ export function GameBoard({
             display: "flex",
             gap: "20px",
             alignItems: "flex-start",
-            flexWrap: "wrap", // Added so it wraps nicely on mobile
+            flexWrap: "wrap",
           }}
         >
           <div>
@@ -148,7 +150,7 @@ export function GameBoard({
       )}
 
       <div
-        className="board-container"
+        className={`board-container ${useWood ? "wood" : ""}`}
         style={{
           // @ts-ignore (TypeScript doesn't like custom CSS vars)
           "--cols": boardSize - 1,
@@ -169,29 +171,18 @@ export function GameBoard({
                 onClick={() =>
                   isTarget && playMove({ kind: "move", to: { x, y } })
                 }
+                className={`tile ${isTarget ? "valid-move" : ""}`}
                 style={{
                   gridColumn: x * 2 + 1,
                   gridRow: (boardSize - 1 - y) * 2 + 1,
-                  backgroundColor: isTarget ? "#4ade80" : "#e5e7eb",
-                  border: "1px solid #9ca3af",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  cursor: isTarget ? "pointer" : "default",
-                  borderRadius: "4px",
-                  zIndex: 1,
                 }}
               >
                 {player && (
                   <div
+                    className="player-piece"
                     style={{
-                      width: "70%",
-                      height: "70%",
-                      borderRadius: "50%",
                       backgroundColor:
                         PLAYER_COLORS[parseInt(player.id.replace("p", ""))],
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                      zIndex: 5,
                     }}
                   />
                 )}
@@ -200,14 +191,21 @@ export function GameBoard({
           }),
         )}
 
-        {/* 2. Placed Walls (Single continuous divs) */}
+        {/* 2. Placed Walls (Colored by Player) */}
         {state.walls.map((wall, i) => {
+          const playerIndex = wall.placedBy
+            ? parseInt(wall.placedBy.replace("p", ""))
+            : -1;
+          const wallColor =
+            playerIndex >= 0 ? PLAYER_COLORS[playerIndex] : "#b45309";
+
           if (wall.orientation === "horizontal") {
             return (
               <div
                 key={`placed-h-${i}`}
                 className="placed-wall"
                 style={{
+                  backgroundColor: wallColor,
                   gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
                   gridRow: (boardSize - 1 - wall.coord.y) * 2,
                 }}
@@ -219,6 +217,7 @@ export function GameBoard({
                 key={`placed-v-${i}`}
                 className="placed-wall"
                 style={{
+                  backgroundColor: wallColor,
                   gridColumn: wall.coord.x * 2 + 2,
                   gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
                 }}
@@ -227,7 +226,7 @@ export function GameBoard({
           }
         })}
 
-        {/* 3. Ghost Walls (Valid moves that appear on hover) */}
+        {/* 3. Ghost Walls (Hover effect) */}
         {validWallMoves.map((wall, i) => {
           if (wall.orientation === "horizontal") {
             return (

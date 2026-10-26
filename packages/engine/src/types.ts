@@ -14,8 +14,9 @@ export type Player = {
 export type Orientation = "horizontal" | "vertical";
 
 export type Wall = {
-  coord: Coord; // anchor point on the grid
+  coord: Coord;
   orientation: Orientation;
+  placedBy?: string; // NEW: Who placed it (e.g., "p0")
 };
 
 export type Move = { kind: "move"; to: Coord } | { kind: "wall"; wall: Wall };

@@ -127,10 +127,10 @@ export function applyMove(state: GameState, move: Move): GameState {
   if (move.kind === "move") {
     currentPlayer.position = move.to;
   } else if (move.kind === "wall") {
-    nextState.walls.push(move.wall);
+    // NEW: Attach the player's ID to the wall
+    nextState.walls.push({ ...move.wall, placedBy: currentPlayer.id });
     currentPlayer.wallsRemaining -= 1;
   }
-
   // 5. Log the move (useful for replay/spectators later)
   nextState.moveLog.push(move);
 

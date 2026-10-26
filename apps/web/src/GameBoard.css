@@ -1,31 +1,8 @@
-.placed-wall {
-  background-color: #b45309; /* Wood brown */
-  border: 1px solid #78350f; /* Add a dark brown border */
-  border-radius: 2px;
-  box-shadow:
-    inset 0px 0px 4px rgba(0, 0, 0, 0.5),
-    0px 2px 4px rgba(0, 0, 0, 0.3);
-  z-index: 10;
-}
-
-.ghost-wall {
-  background-color: transparent; /* Invisible by default */
-  transition: background-color 0.2s;
-  cursor: pointer;
-  z-index: 20;
-  border-radius: 2px;
-}
-
-.ghost-wall:hover {
-  background-color: rgba(134, 239, 172, 0.8); /* Glows green on hover */
-}
-
+/* The main board container */
 .board-container {
   display: grid;
-  /* This dynamically calculates tile size based on screen width. Min 20px, max 40px */
   --tile-size: clamp(20px, 8vw, 40px);
   --gap-size: clamp(4px, 1.5vw, 10px);
-
   grid-template-columns: repeat(
       var(--cols),
       var(--tile-size) var(--gap-size)
@@ -33,11 +10,79 @@
   grid-template-rows: repeat(var(--rows), var(--tile-size) var(--gap-size)) var(
       --tile-size
     );
-
   background-color: #4b5563;
   padding: clamp(8px, 2vw, 16px);
   border-radius: 8px;
   position: relative;
   max-width: 100%;
-  overflow-x: auto; /* Add a scrollbar if it still barely doesn't fit */
+  overflow-x: auto;
+}
+
+/* Classic Tile */
+.tile {
+  background-color: #e5e7eb;
+  border: 1px solid #9ca3af;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+  transition:
+    background-color 0.2s,
+    transform 0.1s;
+}
+
+.tile.valid-move {
+  background-color: #4ade80;
+  cursor: pointer;
+}
+
+.tile.valid-move:hover {
+  background-color: #22c55e;
+  transform: scale(1.05);
+}
+
+/* Wood Texture Toggle */
+.board-container.wood .tile {
+  background-color: #d4a373;
+  border: 1px solid #a67c52;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.board-container.wood {
+  background-color: #5c4033; /* Dark wood border */
+  background-image: url("https://www.transparenttextures.com/patterns/dark-wood.png"); /* Free subtle texture */
+}
+
+/* The Player Pieces */
+.player-piece {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+  transition: all 0.3s ease-in-out; /* Smooth movement animation! */
+}
+
+/* Placed Walls */
+.placed-wall {
+  border-radius: 2px;
+  box-shadow:
+    inset 0px 0px 4px rgba(0, 0, 0, 0.5),
+    0px 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  transition: opacity 0.3s;
+}
+
+/* Ghost Walls (Hover) */
+.ghost-wall {
+  background-color: transparent;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  z-index: 20;
+  border-radius: 2px;
+}
+
+.ghost-wall:hover {
+  background-color: rgba(134, 239, 172, 0.8);
 }

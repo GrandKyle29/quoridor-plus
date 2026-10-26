@@ -118,7 +118,17 @@ export default function App() {
           }}
         />
       </div>
-
+      <div style={{ marginBottom: "20px" }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={useWood}
+            onChange={(e) => setUseWood(e.target.checked)}
+            style={{ marginRight: "8px" }}
+          />
+          Use Wood Texture
+        </label>
+      </div>
       <button
         onClick={handleCreateOnlineRoom}
         disabled={isCreating}
