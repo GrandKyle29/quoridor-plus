@@ -10,6 +10,7 @@ export default function App() {
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
   const [vsBot, setVsBot] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
 
   const handleNameChange = (index: number, value: string) => {
     const newNames = [...names];
@@ -185,6 +186,48 @@ export default function App() {
       >
         {isCreating ? "Creating Room..." : "Create Online Room"}
       </button>
+      <div
+        style={{
+          marginTop: "30px",
+          borderTop: "1px solid #555",
+          paddingTop: "20px",
+        }}
+      >
+        <h3>Join an Existing Game</h3>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <input
+            type="text"
+            placeholder="Enter 4-letter code"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            maxLength={4}
+            style={{
+              padding: "10px",
+              flex: 1,
+              borderRadius: "4px",
+              border: "none",
+              textTransform: "uppercase",
+            }}
+          />
+          <button
+            onClick={() => {
+              if (joinCode.length === 4) navigate(`/game/${joinCode}`);
+              else alert("Please enter a 4-letter code");
+            }}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#eab308",
+              color: "#1f2937",
+              fontWeight: "bold",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            Join
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
