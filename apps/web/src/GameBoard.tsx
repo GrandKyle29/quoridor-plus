@@ -48,6 +48,12 @@ export function GameBoard({
   useEffect(() => {
     if (!state) return;
 
+    // If the game was reset, the log is shorter than our ref. Update ref and skip playing.
+    if (state.moveLog.length < prevMoveCount.current) {
+      prevMoveCount.current = state.moveLog.length;
+      return;
+    }
+
     // Play move/wall sound when the log grows
     if (state.moveLog.length > prevMoveCount.current) {
       const lastMove = state.moveLog[state.moveLog.length - 1];
@@ -293,8 +299,8 @@ export function GameBoard({
           const pIndex = parseInt(player.id.replace("p", ""));
 
           // Calculate exact pixel location based on CSS grid vars
-          const xPos = `calc(${player.position.x * 2} * (var(--tile-size) + var(--gap-size)))`;
-          const yPos = `calc(${(boardSize - 1 - player.position.y) * 2} * (var(--tile-size) + var(--gap-size)))`;
+          const xPos = `calc(var(--padding) + ${player.position.x * 2} * (var(--tile-size) + var(--gap-size)))`;
+          const yPos = `calc(var(--padding) + ${(boardSize - 1 - player.position.y) * 2} * (var(--tile-size) + var(--gap-size)))`;
 
           return (
             <div

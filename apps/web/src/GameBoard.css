@@ -16,6 +16,8 @@
   position: relative;
   max-width: 100%;
   overflow-x: auto;
+  --padding: clamp(8px, 2vw, 16px);
+  padding: var(--padding);
 }
 
 /* Classic Tile */
@@ -94,11 +96,20 @@
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   z-index: 5;
-  /* The Magic: Animate the absolute position! */
   transition:
     left 0.3s ease-in-out,
     top 0.3s ease-in-out;
 
-  /* Make the circle slightly smaller than the tile so it looks nice */
-  transform: scale(0.8);
+  /* Center the circle within its tile space */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.player-piece-animated::after {
+  content: "";
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  background-color: inherit; /* Inherits the color from the parent div */
 }
