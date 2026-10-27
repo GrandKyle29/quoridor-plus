@@ -298,9 +298,9 @@ export function GameBoard({
         {state.players.map((player) => {
           const pIndex = parseInt(player.id.replace("p", ""));
 
-          // Calculate exact pixel location based on CSS grid vars
-          const xPos = `calc(var(--padding) + ${player.position.x * 2} * (var(--tile-size) + var(--gap-size)))`;
-          const yPos = `calc(var(--padding) + ${(boardSize - 1 - player.position.y) * 2} * (var(--tile-size) + var(--gap-size)))`;
+          // FIX: Removed the * 2 here
+          const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
+          const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
 
           return (
             <div
