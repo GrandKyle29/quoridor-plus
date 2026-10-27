@@ -7,8 +7,9 @@ export type Player = {
   name: string;
   position: Coord;
   wallsRemaining: number;
-  connected: boolean; // for later — reconnection, spectators
+  connected: boolean;
   eliminated: boolean;
+  startIndex?: number; // <-- NEW
 };
 
 export type Orientation = "horizontal" | "vertical";

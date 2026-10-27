@@ -13,6 +13,7 @@ interface GameBoardProps {
   localPlayerId?: "p0" | "p1" | "p2" | "p3";
   useWood?: boolean;
   onLeave?: () => void;
+  isOnline?: boolean;
 }
 
 export function GameBoard({
@@ -24,6 +25,7 @@ export function GameBoard({
   localPlayerId,
   useWood = false,
   onLeave,
+  isOnline = false,
 }: GameBoardProps) {
   const localGame = useGame(playerNames, vsBot);
 
@@ -31,9 +33,11 @@ export function GameBoard({
   const playMove = onlinePlayMove || localGame.playMove;
   const resetGame = onlineResetGame || localGame.resetGame;
 
-  const isMyTurn = localPlayerId
-    ? state?.players[state.turnIndex]?.id === localPlayerId
-    : true;
+  const isMyTurn = isOnline
+    ? localPlayerId
+      ? state?.players[state.turnIndex]?.id === localPlayerId
+      : false // Spectators locked out
+    : true; // Local game
 
   // --- SOUND SYSTEM ---
   const playSound = (type: "move" | "wall" | "win") => {

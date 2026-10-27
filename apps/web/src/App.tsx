@@ -56,17 +56,17 @@ export default function App() {
       alert("Please enter your name first!");
       return;
     }
-
     const { data: room, error } = await supabase
       .from("rooms")
       .select("*")
       .eq("id", joinCode)
       .single();
     if (error || !room) return alert("Room not found!");
+    if (room.status !== "lobby") return alert("Game has already started!");
 
     const currentPlayers = room.players || [];
     if (currentPlayers.length >= room.max_players)
-      return alert("Room is full!"); // <-- CHECK MAX PLAYERS
+      return alert("Room is full!");
 
     const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
     await supabase

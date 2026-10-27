@@ -30,7 +30,8 @@ export function GameScreen() {
         vsBot={vsBot}
         localPlayerId={vsBot ? "p0" : undefined}
         useWood={location.state?.useWood}
-        onLeave={() => navigate("/")} // <--- Add this!
+        onLeave={() => navigate("/")}
+        isOnline={false}
       />
     );
   }
@@ -79,10 +80,8 @@ export function GameScreen() {
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
 
     if (newPlayers.length === 0) {
-      // Room is empty, delete it
       await supabase.from("rooms").delete().eq("id", roomCode);
     } else {
-      // If host leaves, promote next player. If game is playing, reset to lobby.
       const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
       const newStatus = room.status === "playing" ? "lobby" : room.status;
       const newState = room.status === "playing" ? null : room.game_state;
@@ -104,15 +103,13 @@ export function GameScreen() {
   // 4. Handle Browser Close / Refresh
   useEffect(() => {
     const handleUnload = () => {
-      // Note: Async requests might not finish before the tab closes.
-      // This is a "best effort" attempt without using a full Presence server.
       if (room && roomCode) {
         leaveRoom(false);
       }
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [room, roomCode]); // Depend on room so we have the latest state
+  }, [room, roomCode]);
 
   // 5. Play Move (Online)
   const playMove = async (move: Move) => {
@@ -150,22 +147,37 @@ export function GameScreen() {
       </div>
     );
 
-  const meIndex = room.players?.findIndex((p: any) => p.id === myId) ?? -1;
+  const me = room.players.find((p: any) => p.id === myId);
+  const meIndex = room.players.indexOf(me);
+  const isHost = room.host_id === myId;
 
-  // If we are not in the player list (e.g., we left but the state didn't update), kick out
-  if (meIndex === -1) {
+  // If we are not in the player list, we are a spectator (or we left)
+  if (!me && room.status === "playing") {
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
-        You left this room.{" "}
-        <button onClick={() => navigate("/")}>Back to Lobby</button>
+        <p>You are spectating. (You cannot make moves).</p>
+        <button
+          onClick={() => navigate("/")}
+          style={{ padding: "8px 16px", marginTop: "10px", cursor: "pointer" }}
+        >
+          Leave
+        </button>
       </div>
     );
   }
 
-  const isHost = room.host_id === myId;
-
   // --- Render Waiting Room ---
   if (room.status === "lobby") {
+    if (!me) {
+      return (
+        <div
+          style={{ color: "white", textAlign: "center", marginTop: "100px" }}
+        >
+          Game has started or room is full.{" "}
+          <button onClick={() => navigate("/")}>Back</button>
+        </div>
+      );
+    }
     return (
       <WaitingRoom
         room={room}
@@ -178,8 +190,10 @@ export function GameScreen() {
 
   // --- Render Game Board ---
   if (room.status === "playing" && room.game_state) {
-    const localPlayerId =
-      meIndex === 0 ? "p0" : meIndex === 1 ? "p1" : undefined;
+    // Determine which engine player ID corresponds to this user
+    const localPlayerId = me
+      ? (`p${meIndex}` as "p0" | "p1" | "p2" | "p3")
+      : undefined;
 
     return (
       <div>
@@ -193,22 +207,6 @@ export function GameScreen() {
         >
           Room: <strong>{roomCode}</strong>
         </div>
-        <button
-          onClick={() => leaveRoom(true)}
-          style={{
-            position: "absolute",
-            top: "16px",
-            right: "16px",
-            padding: "8px",
-            backgroundColor: "transparent",
-            color: "white",
-            border: "1px solid white",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
-        >
-          Leave
-        </button>
         <GameBoard
           playerNames={room.game_state.players.map((p: any) => p.name)}
           vsBot={false}
@@ -216,6 +214,8 @@ export function GameScreen() {
           onlinePlayMove={playMove}
           onlineResetGame={resetOnlineGame}
           localPlayerId={localPlayerId}
+          onLeave={() => leaveRoom(true)}
+          isOnline={true}
         />
       </div>
     );

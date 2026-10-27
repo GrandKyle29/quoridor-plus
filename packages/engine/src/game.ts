@@ -54,6 +54,7 @@ export function createGame(
     wallsRemaining: startingWalls,
     connected: true,
     eliminated: false,
+    startIndex: index, // <-- Set the index here
   }));
 
   return {
@@ -87,17 +88,16 @@ export function isPlayerGoal(
   const { boardSize, goalCondition } = state.config;
   if (goalCondition !== "opposite-edge") return false;
 
-  const playerCount = state.players.length;
+  const player = state.players[playerIndex];
+  if (!player) return false;
 
-  if (playerCount === 2) {
-    if (playerIndex === 0) return coord.y === boardSize - 1;
-    if (playerIndex === 1) return coord.y === 0;
-  } else if (playerCount === 4) {
-    if (playerIndex === 0) return coord.y === boardSize - 1; // Bottom -> Top
-    if (playerIndex === 1) return coord.y === 0; // Top -> Bottom
-    if (playerIndex === 2) return coord.x === boardSize - 1; // Left -> Right
-    if (playerIndex === 3) return coord.x === 0; // Right -> Left
-  }
+  // Use startIndex to determine the goal, regardless of player count
+  const startIndex = player.startIndex ?? playerIndex;
+
+  if (startIndex === 0) return coord.y === boardSize - 1; // Bottom -> Top
+  if (startIndex === 1) return coord.y === 0; // Top -> Bottom
+  if (startIndex === 2) return coord.x === boardSize - 1; // Left -> Right
+  if (startIndex === 3) return coord.x === 0; // Right -> Left
 
   return false;
 }
