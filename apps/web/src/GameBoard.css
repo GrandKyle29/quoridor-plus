@@ -1,3 +1,4 @@
+/*GameBoard.css*/
 /* The main board container */
 .board-container {
   display: grid;
@@ -87,15 +88,17 @@
 }
 
 .player-piece-animated {
-  width: 70%;
-  height: 70%;
+  position: absolute;
+  width: var(--tile-size);
+  height: var(--tile-size);
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   z-index: 5;
-  justify-self: center;
-  align-self: center;
-  /* The Magic: Transition the grid positions! */
+  /* The Magic: Animate the absolute position! */
   transition:
-    grid-column 0.3s ease-in-out,
-    grid-row 0.3s ease-in-out;
+    left 0.3s ease-in-out,
+    top 0.3s ease-in-out;
+
+  /* Make the circle slightly smaller than the tile so it looks nice */
+  transform: scale(0.8);
 }
