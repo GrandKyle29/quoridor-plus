@@ -10,10 +10,7 @@ interface GameBoardProps {
   onlineState?: GameState | null;
   onlinePlayMove?: (move: Move) => void;
   onlineResetGame?: () => void;
-    // Map the player's index in the array to their engine ID
-    const localPlayerId = meIndex >= 0 && meIndex <= 3 
-      ? (`p${meIndex}` as "p0" | "p1" | "p2" | "p3")
-      : undefined;
+  localPlayerId?: "p0" | "p1" | "p2" | "p3";
   useWood?: boolean;
   onLeave?: () => void;
 }
@@ -51,13 +48,11 @@ export function GameBoard({
   useEffect(() => {
     if (!state) return;
 
-    // If the game was reset, the log is shorter than our ref. Update ref and skip playing.
     if (state.moveLog.length < prevMoveCount.current) {
       prevMoveCount.current = state.moveLog.length;
       return;
     }
 
-    // Play move/wall sound when the log grows
     if (state.moveLog.length > prevMoveCount.current) {
       const lastMove = state.moveLog[state.moveLog.length - 1];
       if (lastMove.kind === "move") playSound("move");
@@ -65,7 +60,6 @@ export function GameBoard({
       prevMoveCount.current = state.moveLog.length;
     }
 
-    // Play win sound when game finishes
     if (state.status === "finished" && prevStatus.current !== "finished") {
       playSound("win");
     }
@@ -164,7 +158,7 @@ export function GameBoard({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             {state.players.map((p, i) => (
               <div
                 key={p.id}
@@ -297,11 +291,10 @@ export function GameBoard({
           }
         })}
 
-        {/* 4. Animated Players (Absolute Positioning) */}
+        {/* 4. Animated Players */}
         {state.players.map((player) => {
           const pIndex = parseInt(player.id.replace("p", ""));
 
-          // FIX: Removed the * 2 here
           const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
           const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
 
