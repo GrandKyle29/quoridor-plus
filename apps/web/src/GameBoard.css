@@ -85,3 +85,17 @@
 .ghost-wall:hover {
   background-color: rgba(134, 239, 172, 0.8);
 }
+
+.player-piece-animated {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+  justify-self: center;
+  align-self: center;
+  /* The Magic: Transition the grid positions! */
+  transition:
+    grid-column 0.3s ease-in-out,
+    grid-row 0.3s ease-in-out;
+}

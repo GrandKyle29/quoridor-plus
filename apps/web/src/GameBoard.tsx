@@ -51,6 +51,13 @@ export function GameBoard({
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
 
+  // Sound Helper
+  const playSound = (type: "move" | "wall" | "win") => {
+    const audio = new Audio(`/${type}.mp3`);
+    audio.volume = 0.5; // Keep it subtle
+    audio.play().catch((e) => console.log("Audio play failed:", e));
+  };
+
   return (
     <div>
       {state.status === "finished" ? (
@@ -186,25 +193,18 @@ export function GameBoard({
             return (
               <div
                 key={`tile-${x}-${y}`}
-                onClick={() =>
-                  isTarget && playMove({ kind: "move", to: { x, y } })
-                }
+                onClick={() => {
+                  if (isTarget) {
+                    playSound("move");
+                    playMove({ kind: "move", to: { x, y } });
+                  }
+                }}
                 className={`tile ${isTarget ? "valid-move" : ""}`}
                 style={{
                   gridColumn: x * 2 + 1,
                   gridRow: (boardSize - 1 - y) * 2 + 1,
                 }}
-              >
-                {player && (
-                  <div
-                    className="player-piece"
-                    style={{
-                      backgroundColor:
-                        PLAYER_COLORS[parseInt(player.id.replace("p", ""))],
-                    }}
-                  />
-                )}
-              </div>
+              ></div>
             );
           }),
         )}
@@ -251,7 +251,10 @@ export function GameBoard({
               <div
                 key={`ghost-h-${i}`}
                 className="ghost-wall"
-                onClick={() => playMove({ kind: "wall", wall })}
+                onClick={() => {
+                  playSound("wall");
+                  playMove({ kind: "wall", wall });
+                }}
                 style={{
                   gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
                   gridRow: (boardSize - 1 - wall.coord.y) * 2,
@@ -263,7 +266,10 @@ export function GameBoard({
               <div
                 key={`ghost-v-${i}`}
                 className="ghost-wall"
-                onClick={() => playMove({ kind: "wall", wall })}
+                onClick={() => {
+                  playSound("wall");
+                  playMove({ kind: "wall", wall });
+                }}
                 style={{
                   gridColumn: wall.coord.x * 2 + 2,
                   gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
@@ -271,6 +277,21 @@ export function GameBoard({
               />
             );
           }
+        })}
+        {/* 4. Animated Players */}
+        {state.players.map((player) => {
+          const pIndex = parseInt(player.id.replace("p", ""));
+          return (
+            <div
+              key={player.id}
+              className="player-piece-animated"
+              style={{
+                gridColumn: player.position.x * 2 + 1,
+                gridRow: (boardSize - 1 - player.position.y) * 2 + 1,
+                backgroundColor: PLAYER_COLORS[pIndex],
+              }}
+            />
+          );
         })}
       </div>
     </div>
