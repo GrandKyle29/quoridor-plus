@@ -11,6 +11,7 @@ interface GameBoardProps {
   onlineResetGame?: () => void;
   localPlayerId?: "p0" | "p1" | "p2" | "p3";
   useWood?: boolean;
+  onLeave?: () => void;
 }
 
 export function GameBoard({
@@ -21,6 +22,7 @@ export function GameBoard({
   onlineResetGame,
   localPlayerId,
   useWood = false,
+  onLeave,
 }: GameBoardProps) {
   const localGame = useGame(playerNames, vsBot);
 
@@ -106,6 +108,22 @@ export function GameBoard({
             >
               Reset Game
             </button>
+            {/* ADD THIS LEAVE BUTTON */}
+            {onLeave && (
+              <button
+                onClick={onLeave}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#4b5563",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Leave
+              </button>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>

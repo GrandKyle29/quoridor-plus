@@ -29,6 +29,8 @@ export function GameScreen() {
         playerNames={playerNames}
         vsBot={vsBot}
         localPlayerId={vsBot ? "p0" : undefined}
+        useWood={location.state?.useWood}
+        onLeave={() => navigate("/")} // <--- Add this!
       />
     );
   }

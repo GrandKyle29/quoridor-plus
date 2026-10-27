@@ -3,10 +3,9 @@
   display: grid;
   --tile-size: clamp(20px, 8vw, 40px);
   --gap-size: clamp(4px, 1.5vw, 10px);
-  grid-template-columns: repeat(
-      var(--cols),
-      var(--tile-size) var(--gap-size)
-    ) var(--tile-size);
+  grid-template-columns:
+    repeat(var(--cols), var(--tile-size) var(--gap-size))
+    var(--tile-size);
   grid-template-rows: repeat(var(--rows), var(--tile-size) var(--gap-size)) var(
       --tile-size
     );
@@ -20,8 +19,8 @@
 
 /* Classic Tile */
 .tile {
-  background-color: #e5e7eb;
-  border: 1px solid #9ca3af;
+  background-color: #616d80; /* #e5e7eb;*/
+  border: 1px solid #616d80; /* #9ca3af;*/
   border-radius: 4px;
   display: flex;
   justify-content: center;

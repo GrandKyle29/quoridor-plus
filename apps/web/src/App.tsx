@@ -82,8 +82,8 @@ export default function App() {
         onClick={() => {
           const botName = names[0]?.trim() || "Player";
           navigate("/game", {
-            state: { playerNames: [botName, "Bot"], vsBot: true },
-          });
+            state: { playerNames: [botName, "Bot"], vsBot: true, useWood },
+          }); // <-- Add useWood here
         }}
         style={{
           padding: "12px",
