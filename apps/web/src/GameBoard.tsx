@@ -185,9 +185,6 @@ export function GameBoard({
         {/* 1. The Tiles & Players */}
         {Array.from({ length: boardSize }).map((_, y) =>
           Array.from({ length: boardSize }).map((_, x) => {
-            const player = state.players.find(
-              (p) => p.position.x === x && p.position.y === y,
-            );
             const isTarget = isValidMove(x, y);
 
             return (
