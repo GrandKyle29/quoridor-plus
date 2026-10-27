@@ -9,7 +9,7 @@ export type Player = {
   wallsRemaining: number;
   connected: boolean;
   eliminated: boolean;
-  startIndex?: number; // <-- NEW
+  startIndex?: number; // <-- ADD THIS
 };
 
 export type Orientation = "horizontal" | "vertical";

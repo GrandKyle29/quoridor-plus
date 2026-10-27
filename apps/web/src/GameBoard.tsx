@@ -1,3 +1,4 @@
+//GameBoard.tsx
 import { useEffect, useRef } from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
@@ -36,8 +37,8 @@ export function GameBoard({
   const isMyTurn = isOnline
     ? localPlayerId
       ? state?.players[state.turnIndex]?.id === localPlayerId
-      : false // Spectators locked out
-    : true; // Local game
+      : false
+    : true;
 
   // --- SOUND SYSTEM ---
   const playSound = (type: "move" | "wall" | "win") => {

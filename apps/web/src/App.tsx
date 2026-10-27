@@ -62,6 +62,8 @@ export default function App() {
       .eq("id", joinCode)
       .single();
     if (error || !room) return alert("Room not found!");
+
+    // ADD THIS CHECK:
     if (room.status !== "lobby") return alert("Game has already started!");
 
     const currentPlayers = room.players || [];

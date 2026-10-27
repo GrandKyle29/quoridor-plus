@@ -54,7 +54,7 @@ export function createGame(
     wallsRemaining: startingWalls,
     connected: true,
     eliminated: false,
-    startIndex: index, // <-- Set the index here
+    startIndex: index, // <-- ADD THIS
   }));
 
   return {
@@ -91,7 +91,6 @@ export function isPlayerGoal(
   const player = state.players[playerIndex];
   if (!player) return false;
 
-  // Use startIndex to determine the goal, regardless of player count
   const startIndex = player.startIndex ?? playerIndex;
 
   if (startIndex === 0) return coord.y === boardSize - 1; // Bottom -> Top

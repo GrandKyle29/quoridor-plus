@@ -1,3 +1,4 @@
+//GameScreen.tsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
@@ -190,10 +191,14 @@ export function GameScreen() {
 
   // --- Render Game Board ---
   if (room.status === "playing" && room.game_state) {
-    // Determine which engine player ID corresponds to this user
-    const localPlayerId = me
-      ? (`p${meIndex}` as "p0" | "p1" | "p2" | "p3")
-      : undefined;
+    // Ensure we only map to a valid ID that exists in the engine!
+    const validIds = room.game_state.players.map((p: any) => p.id);
+    const myMappedId = meIndex >= 0 ? `p${meIndex}` : undefined;
+
+    const localPlayerId =
+      myMappedId && validIds.includes(myMappedId)
+        ? (myMappedId as "p0" | "p1" | "p2" | "p3")
+        : undefined;
 
     return (
       <div>
