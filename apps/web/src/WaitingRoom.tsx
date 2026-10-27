@@ -21,7 +21,7 @@ export function WaitingRoom({
       schemaVersion: 1,
       boardSize: 9,
       minPlayers: 2,
-      maxPlayers: 2,
+      maxPlayers: room.max_players, // <-- Use the room's max players
       startingWalls: 10,
       wallPool: "per-player",
       goalCondition: "opposite-edge",
@@ -60,7 +60,9 @@ export function WaitingRoom({
           marginInline: "auto",
         }}
       >
-        <h3>Players ({room.players.length}/2)</h3>
+        <h3>
+          Players ({room.players.length}/{room.max_players})
+        </h3>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {room.players.map((p: any) => (
             <li key={p.id} style={{ fontSize: "18px", margin: "10px 0" }}>

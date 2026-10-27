@@ -10,7 +10,10 @@ interface GameBoardProps {
   onlineState?: GameState | null;
   onlinePlayMove?: (move: Move) => void;
   onlineResetGame?: () => void;
-  localPlayerId?: "p0" | "p1" | "p2" | "p3";
+    // Map the player's index in the array to their engine ID
+    const localPlayerId = meIndex >= 0 && meIndex <= 3 
+      ? (`p${meIndex}` as "p0" | "p1" | "p2" | "p3")
+      : undefined;
   useWood?: boolean;
   onLeave?: () => void;
 }

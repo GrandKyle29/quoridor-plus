@@ -8,6 +8,7 @@ export default function App() {
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState(2);
   const [useWood, setUseWood] = useState(false);
 
   const myId = getMyPlayerId();
@@ -33,6 +34,7 @@ export default function App() {
       host_name: hostName,
       host_id: myId,
       status: "lobby",
+      max_players: maxPlayers, // <-- ADD THIS
       players: [{ id: myId, name: hostName }],
     });
 
@@ -63,7 +65,8 @@ export default function App() {
     if (error || !room) return alert("Room not found!");
 
     const currentPlayers = room.players || [];
-    if (currentPlayers.length >= 2) return alert("Room is full!");
+    if (currentPlayers.length >= room.max_players)
+      return alert("Room is full!"); // <-- CHECK MAX PLAYERS
 
     const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
     await supabase
@@ -129,6 +132,38 @@ export default function App() {
           />
           Use Wood Texture
         </label>
+      </div>
+      <div style={{ marginBottom: "20px" }}>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          Lobby Size:
+        </label>
+        <button
+          onClick={() => setMaxPlayers(2)}
+          style={{
+            padding: "8px 16px",
+            marginRight: "8px",
+            backgroundColor: maxPlayers === 2 ? "#3b82f6" : "#4b5563",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          2 Players
+        </button>
+        <button
+          onClick={() => setMaxPlayers(4)}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: maxPlayers === 4 ? "#3b82f6" : "#4b5563",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          4 Players
+        </button>
       </div>
       <button
         onClick={handleCreateOnlineRoom}
