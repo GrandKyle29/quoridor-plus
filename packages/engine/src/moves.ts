@@ -229,13 +229,23 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
         // Diagonal jumps are only valid if the spot is empty AND not blocked
         if (
           isOnBoard(diagonal, boardSize) &&
-          !getPlayerAt(state, diagonal) &&
+          //!getPlayerAt(state, diagonal) &&
           !isBlockedByWall(state, over, diagonal)
         ) {
           const key = `${diagonal.x},${diagonal.y}`;
-          if (!visited.has(key)) {
-            visited.add(key);
-            jumps.push(diagonal);
+          if (!getPlayerAt(state, diagonal)) {
+            // The space is empty! This is a valid landing spot.
+            if (!visited.has(key)) {
+              visited.add(key);
+              jumps.push(diagonal);
+            }
+          } else {
+            // There is ANOTHER player behind the one we are jumping!
+            // We can chain the jump. Add this new pair to the queue to explore.
+            if (!visited.has(key)) {
+              visited.add(key);
+              queue.push({ from: over, over: diagonal });
+            }
           }
         }
       }
