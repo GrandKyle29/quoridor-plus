@@ -150,7 +150,39 @@ describe("legalMoves - pawn movement", () => {
     expect(moves).toContainEqual({ kind: "move", to: { x: 3, y: 5 } });
     expect(moves).toContainEqual({ kind: "move", to: { x: 5, y: 5 } });
   });
+  it("allows chain jumping over multiple players in a straight line", () => {
+    const state = createGame(classicConfig, ["P1", "P2", "P3", "P4"]);
+    // Set up a line: P1 -> P2 -> P3 -> empty
+    state.players[0]!.position = { x: 4, y: 4 }; // P1
+    state.players[1]!.position = { x: 5, y: 4 }; // P2
+    state.players[2]!.position = { x: 6, y: 4 }; // P3
+    state.players[3]!.position = { x: 0, y: 0 }; // P4 (out of the way)
 
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // P1 should be able to jump over P2 to land at 6,4 (but P3 is there)
+    // P1 should be able to jump over P2 AND P3 to land at 7,4
+    expect(moves).toContainEqual({ kind: "move", to: { x: 7, y: 4 } });
+  });
+
+  it("allows chain jumping and fallback to diagonals if blocked", () => {
+    const state = createGame(classicConfig, ["P1", "P2", "P3", "P4"]);
+    state.players[0]!.position = { x: 4, y: 4 }; // P1
+    state.players[1]!.position = { x: 5, y: 4 }; // P2
+    state.players[2]!.position = { x: 6, y: 4 }; // P3
+    state.players[3]!.position = { x: 0, y: 0 };
+
+    // Place a wall behind P3 so the straight chain jump is blocked
+    state.walls.push({ coord: { x: 6, y: 4 }, orientation: "vertical" });
+
+    const moves = legalMoves(state).filter((m) => m.kind === "move");
+
+    // P1 cannot jump to 7,4
+    expect(moves).not.toContainEqual({ kind: "move", to: { x: 7, y: 4 } });
+    // But P1 CAN jump to the diagonal of P3 (6,5) and (6,3)
+    expect(moves).toContainEqual({ kind: "move", to: { x: 6, y: 5 } });
+    expect(moves).toContainEqual({ kind: "move", to: { x: 6, y: 3 } });
+  });
   it("does not allow diagonal jumping if the corner is blocked by a wall", () => {
     const state = createGame(classicConfig, ["Alice", "Bob"]);
     state.players[0]!.position = { x: 4, y: 4 }; // Alice
