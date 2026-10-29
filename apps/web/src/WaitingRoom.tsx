@@ -37,8 +37,8 @@ export function WaitingRoom({
     const config: GameConfig = {
       schemaVersion: 1,
       boardSize: room.config?.boardSize || 9,
-      minPlayers: 2,
-      maxPlayers: room.max_players || 2,
+      minPlayers: 2, // Engine requires at least 2
+      maxPlayers: 4, // Max possible, engine will adapt
       startingWalls: room.config?.startingWalls ?? 10,
       wallPool: "per-player",
       goalCondition: room.config?.goalCondition || "opposite-edge",
@@ -77,9 +77,7 @@ export function WaitingRoom({
           marginInline: "auto",
         }}
       >
-        <h3>
-          Players ({room.players.length}/{room.max_players})
-        </h3>
+        <h3>Players ({room.players.length})</h3>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {room.players.map((p: any) => (
             <li key={p.id} style={{ fontSize: "18px", margin: "10px 0" }}>
@@ -105,7 +103,7 @@ export function WaitingRoom({
         <h3 style={{ marginTop: 0 }}>
           Game Settings {!isHost && "(Host Only)"}
         </h3>
-
+        {/*
         <div style={{ marginBottom: "10px" }}>
           <label style={{ display: "block", fontSize: "14px" }}>
             Lobby Size:
@@ -125,7 +123,7 @@ export function WaitingRoom({
             <option value={4}>4 Players</option>
           </select>
         </div>
-
+*/}
         <div style={{ marginBottom: "10px" }}>
           <label style={{ display: "block", fontSize: "14px" }}>
             Board Size:

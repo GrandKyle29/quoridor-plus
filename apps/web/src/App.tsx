@@ -20,7 +20,6 @@ export default function App() {
       host_name: hostName,
       host_id: myId,
       status: "lobby",
-      max_players: 2,
       players: [{ id: myId, name: hostName }],
       config: {
         boardSize: 9,
@@ -51,8 +50,16 @@ export default function App() {
     if (room.status !== "lobby") return alert("Game has already started!");
 
     const currentPlayers = room.players || [];
-    if (currentPlayers.length >= room.max_players)
-      return alert("Room is full!");
+
+    // NEW: Check if we are already in the room!
+    const amIAlreadyIn = currentPlayers.some((p: any) => p.id === myId);
+    if (amIAlreadyIn) {
+      navigate(`/game/${joinCode}`);
+      return;
+    }
+
+    // (Optional) still enforce a hard cap of 4, just in case
+    if (currentPlayers.length >= 4) return alert("Room is full!");
 
     const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
     await supabase
