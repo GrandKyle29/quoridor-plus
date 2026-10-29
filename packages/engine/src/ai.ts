@@ -1,7 +1,7 @@
 import type { GameState } from "./state";
 import type { Move, Coord } from "./types";
 import { legalMoves } from "./moves";
-import { applyMove } from "./game";
+import { applyMove, isPlayerGoal } from "./game"; // Added isPlayerGoal
 
 // Helper: BFS to find the shortest distance to the goal for a player
 function getDistanceToGoal(state: GameState, playerId: string): number {
@@ -18,27 +18,23 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
   while (queue.length > 0) {
     const { coord, dist } = queue.shift()!;
 
-    let isGoal = false;
-    if (state.players.length === 2) {
-      if (playerIndex === 0 && coord.y === boardSize - 1) isGoal = true;
-      if (playerIndex === 1 && coord.y === 0) isGoal = true;
-    } else {
-      if (playerIndex === 0 && coord.y === boardSize - 1) isGoal = true;
-      if (playerIndex === 1 && coord.y === 0) isGoal = true;
-      if (playerIndex === 2 && coord.x === boardSize - 1) isGoal = true;
-      if (playerIndex === 3 && coord.x === 0) isGoal = true;
+    // Use the engine's goal checker so King of the Hill works automatically
+    if (isPlayerGoal(state, playerIndex, coord)) {
+      return dist;
     }
 
-    if (isGoal) return dist;
-
+    // Check 4 directions
     const dirs = [
       { dx: 0, dy: 1 },
       { dx: 0, dy: -1 },
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
     ];
+
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
+
+      // Skip if off board
       if (
         next.x < 0 ||
         next.x >= boardSize ||
@@ -46,8 +42,11 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
         next.y >= boardSize
       )
         continue;
+
+      // Skip if already visited
       if (visited.has(`${next.x},${next.y}`)) continue;
 
+      // Inline wall block check
       let blocked = false;
       for (const wall of state.walls) {
         const { x, y } = wall.coord;
@@ -83,19 +82,21 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
-  return 999;
+
+  return 999; // Unreachable
 }
 
-// The main AI function
+// The main AI function (Heuristic 1-Ply)
 export function getBestMove(state: GameState): Move {
   const currentPlayer = state.players[state.turnIndex]!;
   const moves = legalMoves(state);
+
   if (moves.length === 1) return moves[0]!;
 
   let bestMove = moves[0]!;
   let bestScore = Infinity;
 
-  // 1. How close is the opponent RIGHT NOW?
+  // How close is the closest opponent RIGHT NOW?
   let currentMinOppDist = 999;
   for (const p of state.players) {
     if (p.id !== currentPlayer.id) {
@@ -107,6 +108,7 @@ export function getBestMove(state: GameState): Move {
   for (const move of moves) {
     const nextState = applyMove(state, move);
 
+    // If this move wins the game, take it immediately!
     if (
       nextState.status === "finished" &&
       nextState.winner === currentPlayer.id
@@ -117,38 +119,46 @@ export function getBestMove(state: GameState): Move {
     const myDist = getDistanceToGoal(nextState, currentPlayer.id);
 
     let minOppDist = 999;
+    let totalOppDist = 0;
+    let opponentCount = 0;
     let maxOppWalls = 0;
+
     for (const p of nextState.players) {
       if (p.id !== currentPlayer.id) {
         const d = getDistanceToGoal(nextState, p.id);
         if (d < minOppDist) minOppDist = d;
+        totalOppDist += d;
+        opponentCount++;
         if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
       }
     }
 
-    // Base score: difference in distance
-    let score = myDist - minOppDist;
+    const avgOppDist = opponentCount > 0 ? totalOppDist / opponentCount : 999;
+
+    // Base score: We want myDist to be low, and we want to push opponents away.
+    // We weight the CLOSEST opponent heavily (threat), and the AVERAGE opponent slightly.
+    let score = myDist - minOppDist * 0.8 - avgOppDist * 0.2;
 
     // Evaluate Walls
     if (move.kind === "wall") {
-      // If the opponent is about to win, we heavily reward blocking.
+      // If an opponent is about to win, heavily reward blocking
       if (currentMinOppDist <= 2) {
-        score -= 5; // Big bonus for blocking a threat
+        score -= 5;
       } else {
-        // If we are safe, we manage our wall economy.
-        score += 2; // Base cost for using a wall
+        // If we are safe, manage our wall economy.
+        score += 2; // Base cost for placing a wall
 
         const myWalls = nextState.players.find(
           (p) => p.id === currentPlayer.id,
         )!.wallsRemaining;
         const wallDiff = maxOppWalls - myWalls;
 
-        // If we have fewer walls than the opponent, add a massive penalty.
+        // Penalty for having fewer walls than the leader
         if (wallDiff > 0) {
           score += wallDiff * 4;
         }
 
-        // If we are already winning the race, absolutely do not waste a wall.
+        // If we are already winning the race, do not waste a wall
         if (myDist < minOppDist) {
           score += 10;
         }

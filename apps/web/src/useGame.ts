@@ -41,17 +41,22 @@ export function useGame(
 
   // Trigger the AI
   useEffect(() => {
-    if (vsBot && state.status === "active" && state.turnIndex === 1) {
-      const timer = setTimeout(() => {
-        try {
-          const move = getBestMove(state);
-          if (move) playMove(move);
-        } catch (err) {
-          console.error("AI crashed!", err);
-        }
-      }, 500);
+    if (vsBot && state.status === "active") {
+      const currentPlayer = state.players[state.turnIndex];
 
-      return () => clearTimeout(timer);
+      // Check if the current player is a bot
+      if (currentPlayer && currentPlayer.name.startsWith("Bot")) {
+        const timer = setTimeout(() => {
+          try {
+            const move = getBestMove(state);
+            if (move) playMove(move);
+          } catch (err) {
+            console.error("AI crashed!", err);
+          }
+        }, 500);
+
+        return () => clearTimeout(timer);
+      }
     }
   }, [state, vsBot]);
 

@@ -4,22 +4,28 @@ import { useNavigate } from "react-router-dom";
 export function LocalSetup() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [botCount, setBotCount] = useState(1); // 1 to 3 bots
   const [boardSize, setBoardSize] = useState(9);
   const [goalCondition, setGoalCondition] = useState("opposite-edge");
   const [startingWalls, setStartingWalls] = useState(10);
   const [useWood, setUseWood] = useState(false);
 
   const startGame = () => {
+    const playerNames = [name.trim() || "Player"];
+    for (let i = 0; i < botCount; i++) {
+      playerNames.push(`Bot ${i + 1}`);
+    }
+
     navigate("/game", {
       state: {
-        playerNames: [name.trim() || "Player", "Bot"],
+        playerNames,
         vsBot: true,
         useWood,
         configOverrides: {
           boardSize,
           goalCondition,
           startingWalls,
-          maxPlayers: 2,
+          maxPlayers: botCount + 1,
         },
       },
     });
@@ -37,6 +43,19 @@ export function LocalSetup() {
           onChange={(e) => setName(e.target.value)}
           style={{ width: "100%", padding: "8px" }}
         />
+      </div>
+
+      <div style={{ marginBottom: "10px" }}>
+        <label>Number of Bots:</label>
+        <select
+          value={botCount}
+          onChange={(e) => setBotCount(Number(e.target.value))}
+          style={{ width: "100%", padding: "8px", color: "black" }}
+        >
+          <option value={1}>1 Bot (1v1)</option>
+          <option value={2}>2 Bots (1v1v1)</option>
+          <option value={3}>3 Bots (1v1v1v1)</option>
+        </select>
       </div>
 
       <div style={{ marginBottom: "10px" }}>
@@ -84,7 +103,6 @@ export function LocalSetup() {
           Use Wood Texture
         </label>
       </div>
-
       <button
         onClick={startGame}
         style={{
@@ -100,7 +118,6 @@ export function LocalSetup() {
       >
         Start Game
       </button>
-
       <button
         onClick={() => navigate("/")}
         style={{
