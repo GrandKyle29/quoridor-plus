@@ -1,9 +1,9 @@
 import type { GameState } from "./state";
 import type { Move, Coord } from "./types";
 import { legalMoves } from "./moves";
-import { applyMove, isPlayerGoal } from "./game"; // Added isPlayerGoal
+import { applyMove, isPlayerGoal } from "./game";
 
-// Helper: BFS to find the shortest distance to the goal for a player
+// BFS Distance to goal (kept from before)
 function getDistanceToGoal(state: GameState, playerId: string): number {
   const player = state.players.find((p) => p.id === playerId)!;
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
@@ -17,24 +17,16 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
 
   while (queue.length > 0) {
     const { coord, dist } = queue.shift()!;
+    if (isPlayerGoal(state, playerIndex, coord)) return dist;
 
-    // Use the engine's goal checker so King of the Hill works automatically
-    if (isPlayerGoal(state, playerIndex, coord)) {
-      return dist;
-    }
-
-    // Check 4 directions
     const dirs = [
       { dx: 0, dy: 1 },
       { dx: 0, dy: -1 },
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
     ];
-
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
-
-      // Skip if off board
       if (
         next.x < 0 ||
         next.x >= boardSize ||
@@ -42,11 +34,8 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
         next.y >= boardSize
       )
         continue;
-
-      // Skip if already visited
       if (visited.has(`${next.x},${next.y}`)) continue;
 
-      // Inline wall block check
       let blocked = false;
       for (const wall of state.walls) {
         const { x, y } = wall.coord;
@@ -77,26 +66,45 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
         }
       }
       if (blocked) continue;
-
       visited.add(`${next.x},${next.y}`);
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
-
-  return 999; // Unreachable
+  return 999;
 }
-// --- MINIMAX AI ---
 
-// Helper: Evaluate the board from the current player's perspective
+// 1. Pruning: Only consider walls near players
+function getPrunedMoves(state: GameState): Move[] {
+  const allMoves = legalMoves(state);
+  const pawnMoves = allMoves.filter((m) => m.kind === "move");
+
+  // Only keep walls within 3 tiles of ANY player
+  const wallMoves = allMoves.filter((m) => {
+    if (m.kind !== "wall") return false;
+    return state.players.some((p) => {
+      const dx = Math.abs(m.wall.coord.x - p.position.x);
+      const dy = Math.abs(m.wall.coord.y - p.position.y);
+      return dx <= 3 && dy <= 3;
+    });
+  });
+
+  // Sort moves to help alpha-beta pruning find good moves first:
+  // 1. Moves closer to the goal first
+  // 2. Walls second
+  return [...pawnMoves, ...wallMoves].sort((a, b) => {
+    if (a.kind === "move" && b.kind === "wall") return -1;
+    if (a.kind === "wall" && b.kind === "move") return 1;
+    return 0;
+  });
+}
+
 function evaluate(state: GameState, botId: string): number {
-  if (state.status === "finished") {
-    return state.winner === botId ? 10000 : -10000;
-  }
+  if (state.status === "finished")
+    return state.winner === botId ? 100000 : -100000;
 
   const botPlayer = state.players.find((p) => p.id === botId)!;
   const botDist = getDistanceToGoal(state, botId);
 
-  // Find the closest opponent
   let minOppDist = 999;
   for (const p of state.players) {
     if (p.id !== botId) {
@@ -105,68 +113,60 @@ function evaluate(state: GameState, botId: string): number {
     }
   }
 
-  // A simple heuristic:
-  // 1. I want to be close to my goal (lower botDist is better).
-  // 2. I want opponents to be far (higher minOppDist is better).
-  // 3. I want to have walls if the opponent gets close.
-  let score = -botDist + minOppDist * 1.5;
-
-  // Small bonus for having more walls
-  score += botPlayer.wallsRemaining * 0.1;
-
-  return score;
-}
-
-// Helper: Filter out walls that are far away from all players
-function getPrunedMoves(state: GameState): Move[] {
-  const allMoves = legalMoves(state);
-
-  // Always keep pawn moves
-  const pawnMoves = allMoves.filter((m) => m.kind === "move");
-
-  // Filter walls: Only keep walls within 3 tiles of any player
-  const wallMoves = allMoves.filter((m) => {
-    if (m.kind !== "wall") return false;
-
-    return state.players.some((p) => {
-      const dx = Math.abs(m.wall.coord.x - p.position.x);
-      const dy = Math.abs(m.wall.coord.y - p.position.y);
-      return dx <= 3 && dy <= 3;
-    });
-  });
-
-  return [...pawnMoves, ...wallMoves];
+  // Score:
+  // 1. Lower myDist is good (negative)
+  // 2. Higher oppDist is good (positive)
+  // 3. More walls is good (bonus)
+  return -botDist * 1.0 + minOppDist * 1.5 + botPlayer.wallsRemaining * 0.2;
 }
 
 export function getBestMove(state: GameState): Move {
   const botId = state.players[state.turnIndex]!.id;
+  const startTime = Date.now();
+  const TIME_LIMIT = 1500; // Max 1.5 seconds per move
 
-  // Generate and order moves to make Alpha-Beta pruning effective
-  const moves = getPrunedMoves(state);
+  let bestMove = getPrunedMoves(state)[0]!;
 
-  // Sort moves: Pawn moves first, then walls (this drastically speeds up pruning)
-  moves.sort((a, b) => {
-    if (a.kind === "move" && b.kind === "wall") return -1;
-    if (a.kind === "wall" && b.kind === "move") return 1;
-    return 0;
-  });
+  // Iterative Deepening: Try depth 1, then 2, then 3, then 4...
+  // Stop if we run out of time.
+  for (let depth = 1; depth <= 4; depth++) {
+    let currentBestScore = -Infinity;
+    let currentBestMove = bestMove;
+    let alpha = -Infinity;
+    const beta = Infinity;
 
-  let bestMove = moves[0]!;
-  let bestScore = -Infinity;
+    const moves = getPrunedMoves(state);
+    let timedOut = false;
 
-  const depth = 3; // 3 plies = Bot move -> Opponent move -> Bot move
-  let alpha = -Infinity;
-  const beta = Infinity;
+    for (const move of moves) {
+      if (Date.now() - startTime > TIME_LIMIT) {
+        timedOut = true;
+        break;
+      }
 
-  for (const move of moves) {
-    const nextState = applyMove(state, move);
-    const score = minimax(nextState, depth - 1, alpha, beta, botId, false);
+      const nextState = applyMove(state, move);
+      const score = minimax(
+        nextState,
+        depth - 1,
+        alpha,
+        beta,
+        botId,
+        false,
+        startTime,
+        TIME_LIMIT,
+      );
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
+      if (score > currentBestScore) {
+        currentBestScore = score;
+        currentBestMove = move;
+      }
+      alpha = Math.max(alpha, score);
     }
-    alpha = Math.max(alpha, score);
+
+    bestMove = currentBestMove;
+
+    // If we timed out, stop searching deeper
+    if (timedOut) break;
   }
 
   return bestMove;
@@ -179,11 +179,18 @@ function minimax(
   beta: number,
   botId: string,
   isMaximizing: boolean,
+  startTime: number,
+  timeLimit: number,
 ): number {
-  // Base cases
+  // Time limit check
+  if (Date.now() - startTime > timeLimit) {
+    return evaluate(state, botId);
+  }
+
   if (depth === 0 || state.status === "finished") {
     return evaluate(state, botId);
   }
+
   const moves = getPrunedMoves(state);
 
   if (isMaximizing) {
@@ -197,20 +204,31 @@ function minimax(
         beta,
         botId,
         false,
+        startTime,
+        timeLimit,
       );
       maxEval = Math.max(maxEval, evalScore);
       alpha = Math.max(alpha, evalScore);
-      if (beta <= alpha) break; // Prune
+      if (beta <= alpha) break;
     }
     return maxEval;
   } else {
     let minEval = Infinity;
     for (const move of moves) {
       const nextState = applyMove(state, move);
-      const evalScore = minimax(nextState, depth - 1, alpha, beta, botId, true);
+      const evalScore = minimax(
+        nextState,
+        depth - 1,
+        alpha,
+        beta,
+        botId,
+        true,
+        startTime,
+        timeLimit,
+      );
       minEval = Math.min(minEval, evalScore);
       beta = Math.min(beta, evalScore);
-      if (beta <= alpha) break; // Prune
+      if (beta <= alpha) break;
     }
     return minEval;
   }
