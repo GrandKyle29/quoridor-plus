@@ -174,12 +174,12 @@ function isWallPlacementValid(state: GameState, newWall: Wall): boolean {
 
   return true;
 }
-
 function getChainJumps(state: GameState, start: Coord): Coord[] {
   const { boardSize } = state.config;
   const jumps: Coord[] = [];
-  const visited = new Set<string>();
-  visited.add(`${start.x},${start.y}`);
+
+  // Track visited "hops" to prevent infinite loops, but allow reaching the same tile from different paths
+  const visitedHops = new Set<string>();
 
   // BFS Queue: { from: the tile we are jumping FROM, over: the player we are jumping OVER }
   const queue: { from: Coord; over: Coord }[] = [];
@@ -191,18 +191,18 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
     { dx: -1, dy: 0 },
   ];
 
-  // Seed the queue with adjacent players
+  // Seed the queue with adjacent players (CHECKING FOR WALLS)
   for (const dir of dirs) {
     const adj = { x: start.x + dir.dx, y: start.y + dir.dy };
-    if (getPlayerAt(state, adj)) {
+    if (getPlayerAt(state, adj) && !isBlockedByWall(state, start, adj)) {
       queue.push({ from: start, over: adj });
+      visitedHops.add(`${start.x},${start.y},${adj.x},${adj.y}`);
     }
   }
 
   while (queue.length > 0) {
     const { from, over } = queue.shift()!;
 
-    // The direction vector from the tile we jumped from to the player we jumped over
     const dx = over.x - from.x;
     const dy = over.y - from.y;
 
@@ -211,7 +211,6 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
 
     if (!isOnBoard(behind, boardSize) || isBlockedByWall(state, over, behind)) {
       // STRAIGHT JUMP BLOCKED.
-      // Check diagonal jumps around the `over` player.
       const diagonalDirs =
         dx === 0
           ? [
@@ -226,44 +225,44 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
       for (const dDir of diagonalDirs) {
         const diagonal = { x: over.x + dDir.dx, y: over.y + dDir.dy };
 
-        // Diagonal jumps are only valid if the spot is empty AND not blocked
         if (
           isOnBoard(diagonal, boardSize) &&
-          //!getPlayerAt(state, diagonal) &&
           !isBlockedByWall(state, over, diagonal)
         ) {
-          const key = `${diagonal.x},${diagonal.y}`;
-          if (!getPlayerAt(state, diagonal)) {
-            // The space is empty! This is a valid landing spot.
-            if (!visited.has(key)) {
-              visited.add(key);
-              jumps.push(diagonal);
-            }
-          } else {
-            // There is ANOTHER player behind the one we are jumping!
-            // We can chain the jump. Add this new pair to the queue to explore.
-            if (!visited.has(key)) {
-              visited.add(key);
+          const hopKey = `${over.x},${over.y},${diagonal.x},${diagonal.y}`;
+
+          if (!visitedHops.has(hopKey)) {
+            visitedHops.add(hopKey);
+
+            if (!getPlayerAt(state, diagonal)) {
+              // The space is empty! This is a valid landing spot.
+              const jumpKey = `${diagonal.x},${diagonal.y}`;
+              if (
+                !jumps.some((j) => j.x === diagonal.x && j.y === diagonal.y)
+              ) {
+                jumps.push(diagonal);
+              }
+            } else {
+              // There is ANOTHER player there! Continue the chain.
               queue.push({ from: over, over: diagonal });
             }
           }
         }
       }
     } else {
-      // STRAIGHT JUMP IS POSSIBLE (the tile behind is on board and empty of walls)
-      const key = `${behind.x},${behind.y}`;
+      // STRAIGHT JUMP IS POSSIBLE
+      const hopKey = `${over.x},${over.y},${behind.x},${behind.y}`;
 
-      if (!getPlayerAt(state, behind)) {
-        // The space is empty! This is a valid landing spot.
-        if (!visited.has(key)) {
-          visited.add(key);
-          jumps.push(behind);
-        }
-      } else {
-        // There is ANOTHER player behind the one we are jumping!
-        // We can chain the jump. Add this new pair to the queue to explore.
-        if (!visited.has(key)) {
-          visited.add(key);
+      if (!visitedHops.has(hopKey)) {
+        visitedHops.add(hopKey);
+
+        if (!getPlayerAt(state, behind)) {
+          // The space is empty! This is a valid landing spot.
+          if (!jumps.some((j) => j.x === behind.x && j.y === behind.y)) {
+            jumps.push(behind);
+          }
+        } else {
+          // There is ANOTHER player there! Continue the chain.
           queue.push({ from: over, over: behind });
         }
       }
@@ -353,10 +352,18 @@ export function legalMoves(state: GameState): Move[] {
   }
 
   // If >2 players, add all chain jumps at once
+  // If >2 players, add all chain jumps at once
   if (state.players.length > 2) {
     const chainJumps = getChainJumps(state, currentPlayer.position);
     for (const jump of chainJumps) {
-      moves.push({ kind: "move", to: jump });
+      // Prevent adding the same coordinate twice
+      if (
+        !moves.some(
+          (m) => m.kind === "move" && m.to.x === jump.x && m.to.y === jump.y,
+        )
+      ) {
+        moves.push({ kind: "move", to: jump });
+      }
     }
   }
 
