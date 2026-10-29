@@ -80,7 +80,7 @@ export function GameBoard({
   if (!state) return null;
   const { boardSize } = state.config;
 
-  const PLAYER_COLORS = ["#ef4444", "#3b82f6", "#eab308", "#22c55e"];
+  const PLAYER_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
   const currentMoves = legalMoves(state);
   const validPawnMoves = isMyTurn

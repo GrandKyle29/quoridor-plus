@@ -51,16 +51,28 @@ export function useGame(
   useEffect(() => {
     if (vsBot && state.status === "active") {
       const currentPlayer = state.players[state.turnIndex];
+
       if (currentPlayer && currentPlayer.name.startsWith("Bot")) {
-        const timer = setTimeout(() => {
-          try {
-            const move = getBestMove(state);
-            if (move) playMove(move);
-          } catch (err) {
-            console.error("AI crashed!", err);
+        // Create a worker
+        const worker = new Worker(new URL("./ai.worker.ts", import.meta.url), {
+          type: "module",
+        });
+
+        // Tell the worker to calculate the best move
+        worker.postMessage(state);
+
+        // Listen for the result
+        worker.onmessage = (e) => {
+          const bestMove = e.data;
+          if (bestMove) {
+            playMove(bestMove);
           }
-        }, 500);
-        return () => clearTimeout(timer);
+          worker.terminate(); // Kill the worker to free memory
+        };
+
+        return () => {
+          worker.terminate();
+        };
       }
     }
   }, [state, vsBot]);

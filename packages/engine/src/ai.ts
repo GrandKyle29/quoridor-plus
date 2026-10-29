@@ -117,11 +117,32 @@ function evaluate(state: GameState, botId: string): number {
   return score;
 }
 
+// Helper: Filter out walls that are far away from all players
+function getPrunedMoves(state: GameState): Move[] {
+  const allMoves = legalMoves(state);
+
+  // Always keep pawn moves
+  const pawnMoves = allMoves.filter((m) => m.kind === "move");
+
+  // Filter walls: Only keep walls within 3 tiles of any player
+  const wallMoves = allMoves.filter((m) => {
+    if (m.kind !== "wall") return false;
+
+    return state.players.some((p) => {
+      const dx = Math.abs(m.wall.coord.x - p.position.x);
+      const dy = Math.abs(m.wall.coord.y - p.position.y);
+      return dx <= 3 && dy <= 3;
+    });
+  });
+
+  return [...pawnMoves, ...wallMoves];
+}
+
 export function getBestMove(state: GameState): Move {
   const botId = state.players[state.turnIndex]!.id;
 
   // Generate and order moves to make Alpha-Beta pruning effective
-  const moves = legalMoves(state);
+  const moves = getPrunedMoves(state);
 
   // Sort moves: Pawn moves first, then walls (this drastically speeds up pruning)
   moves.sort((a, b) => {
@@ -163,8 +184,7 @@ function minimax(
   if (depth === 0 || state.status === "finished") {
     return evaluate(state, botId);
   }
-
-  const moves = legalMoves(state);
+  const moves = getPrunedMoves(state);
 
   if (isMaximizing) {
     let maxEval = -Infinity;
