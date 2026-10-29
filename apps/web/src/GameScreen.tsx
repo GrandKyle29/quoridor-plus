@@ -34,10 +34,11 @@ export function GameScreen() {
         vsBot={vsBot}
         localPlayerId={vsBot ? "p0" : undefined}
         useWood={location.state?.useWood}
-        onLeave={() => navigate("/")}
+        // UPDATE THIS LINE:
+        onLeave={(config) =>
+          navigate("/local", { state: { prevConfig: config } })
+        }
         isOnline={false}
-        // PASS THE OVERRIDES
-        configOverrides={configOverrides}
       />
     );
   }

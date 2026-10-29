@@ -13,7 +13,7 @@ interface GameBoardProps {
   onlineResetGame?: () => void;
   localPlayerId?: "p0" | "p1" | "p2" | "p3";
   useWood?: boolean;
-  onLeave?: () => void;
+  onLeave?: (config?: GameConfig) => void; // Update this line
   isOnline?: boolean;
   configOverrides?: Partial<GameConfig>;
 }
@@ -101,20 +101,48 @@ export function GameBoard({
             Game Over! {state.players.find((p) => p.id === state.winner)?.name}{" "}
             wins!
           </h2>
-          <button
-            onClick={resetGame}
+
+          <div
             style={{
-              padding: "8px 16px",
-              fontSize: "16px",
-              backgroundColor: "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
+              display: "flex",
+              gap: "10px",
+              justifyContent: "center",
+              marginTop: "15px",
             }}
           >
-            Play Again
-          </button>
+            <button
+              onClick={resetGame}
+              style={{
+                padding: "8px 16px",
+                fontSize: "16px",
+                backgroundColor: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Play Again
+            </button>
+
+            {/* NEW: Back to Settings button */}
+            {onLeave && (
+              <button
+                onClick={() => onLeave(state.config)}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "16px",
+                  backgroundColor: "#4b5563",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Back to Setup
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div
@@ -166,7 +194,7 @@ export function GameBoard({
               </button>
               {onLeave && (
                 <button
-                  onClick={onLeave}
+                  onClick={() => onLeave(state.config)}
                   style={{
                     padding: "6px 12px",
                     backgroundColor: "#4b5563",

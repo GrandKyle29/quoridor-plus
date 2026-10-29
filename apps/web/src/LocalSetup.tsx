@@ -1,13 +1,22 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export function LocalSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get settings from the previous game, if they exist
+  const prevConfig = location.state?.prevConfig || {};
+
   const [name, setName] = useState("");
-  const [botCount, setBotCount] = useState(1); // 1 to 3 bots
-  const [boardSize, setBoardSize] = useState(9);
-  const [goalCondition, setGoalCondition] = useState("opposite-edge");
-  const [startingWalls, setStartingWalls] = useState(10);
+  const [botCount, setBotCount] = useState((prevConfig.maxPlayers || 2) - 1);
+  const [boardSize, setBoardSize] = useState(prevConfig.boardSize || 9);
+  const [goalCondition, setGoalCondition] = useState(
+    prevConfig.goalCondition || "opposite-edge",
+  );
+  const [startingWalls, setStartingWalls] = useState(
+    prevConfig.startingWalls ?? 10,
+  );
   const [useWood, setUseWood] = useState(false);
 
   const startGame = () => {
