@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
-import type { GameState, Move } from "@quoridor/engine";
+import type { GameState, Move, GameConfig } from "@quoridor/engine";
 import "./GameBoard.css";
 
 interface GameBoardProps {
