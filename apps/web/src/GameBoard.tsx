@@ -1,5 +1,5 @@
 //GameBoard.tsx
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
 import type { GameState, Move, GameConfig } from "@quoridor/engine";
