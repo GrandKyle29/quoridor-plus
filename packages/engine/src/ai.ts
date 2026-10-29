@@ -85,91 +85,113 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
 
   return 999; // Unreachable
 }
+// --- MINIMAX AI ---
 
-// The main AI function (Heuristic 1-Ply)
-export function getBestMove(state: GameState): Move {
-  const currentPlayer = state.players[state.turnIndex]!;
-  const moves = legalMoves(state);
+// Helper: Evaluate the board from the current player's perspective
+function evaluate(state: GameState, botId: string): number {
+  if (state.status === "finished") {
+    return state.winner === botId ? 10000 : -10000;
+  }
 
-  if (moves.length === 1) return moves[0]!;
+  const botPlayer = state.players.find((p) => p.id === botId)!;
+  const botDist = getDistanceToGoal(state, botId);
 
-  let bestMove = moves[0]!;
-  let bestScore = Infinity;
-
-  // How close is the closest opponent RIGHT NOW?
-  let currentMinOppDist = 999;
+  // Find the closest opponent
+  let minOppDist = 999;
   for (const p of state.players) {
-    if (p.id !== currentPlayer.id) {
+    if (p.id !== botId) {
       const d = getDistanceToGoal(state, p.id);
-      if (d < currentMinOppDist) currentMinOppDist = d;
+      if (d < minOppDist) minOppDist = d;
     }
   }
+
+  // A simple heuristic:
+  // 1. I want to be close to my goal (lower botDist is better).
+  // 2. I want opponents to be far (higher minOppDist is better).
+  // 3. I want to have walls if the opponent gets close.
+  let score = -botDist + minOppDist * 1.5;
+
+  // Small bonus for having more walls
+  score += botPlayer.wallsRemaining * 0.1;
+
+  return score;
+}
+
+export function getBestMove(state: GameState): Move {
+  const botId = state.players[state.turnIndex]!.id;
+
+  // Generate and order moves to make Alpha-Beta pruning effective
+  const moves = legalMoves(state);
+
+  // Sort moves: Pawn moves first, then walls (this drastically speeds up pruning)
+  moves.sort((a, b) => {
+    if (a.kind === "move" && b.kind === "wall") return -1;
+    if (a.kind === "wall" && b.kind === "move") return 1;
+    return 0;
+  });
+
+  let bestMove = moves[0]!;
+  let bestScore = -Infinity;
+
+  const depth = 3; // 3 plies = Bot move -> Opponent move -> Bot move
+  let alpha = -Infinity;
+  const beta = Infinity;
 
   for (const move of moves) {
     const nextState = applyMove(state, move);
+    const score = minimax(nextState, depth - 1, alpha, beta, botId, false);
 
-    // If this move wins the game, take it immediately!
-    if (
-      nextState.status === "finished" &&
-      nextState.winner === currentPlayer.id
-    ) {
-      return move;
-    }
-
-    const myDist = getDistanceToGoal(nextState, currentPlayer.id);
-
-    let minOppDist = 999;
-    let totalOppDist = 0;
-    let opponentCount = 0;
-    let maxOppWalls = 0;
-
-    for (const p of nextState.players) {
-      if (p.id !== currentPlayer.id) {
-        const d = getDistanceToGoal(nextState, p.id);
-        if (d < minOppDist) minOppDist = d;
-        totalOppDist += d;
-        opponentCount++;
-        if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
-      }
-    }
-
-    const avgOppDist = opponentCount > 0 ? totalOppDist / opponentCount : 999;
-
-    // Base score: We want myDist to be low, and we want to push opponents away.
-    // We weight the CLOSEST opponent heavily (threat), and the AVERAGE opponent slightly.
-    let score = myDist - minOppDist * 0.8 - avgOppDist * 0.2;
-
-    // Evaluate Walls
-    if (move.kind === "wall") {
-      // If an opponent is about to win, heavily reward blocking
-      if (currentMinOppDist <= 2) {
-        score -= 5;
-      } else {
-        // If we are safe, manage our wall economy.
-        score += 2; // Base cost for placing a wall
-
-        const myWalls = nextState.players.find(
-          (p) => p.id === currentPlayer.id,
-        )!.wallsRemaining;
-        const wallDiff = maxOppWalls - myWalls;
-
-        // Penalty for having fewer walls than the leader
-        if (wallDiff > 0) {
-          score += wallDiff * 4;
-        }
-
-        // If we are already winning the race, do not waste a wall
-        if (myDist < minOppDist) {
-          score += 10;
-        }
-      }
-    }
-
-    if (score < bestScore) {
+    if (score > bestScore) {
       bestScore = score;
       bestMove = move;
     }
+    alpha = Math.max(alpha, score);
   }
 
   return bestMove;
+}
+
+function minimax(
+  state: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  botId: string,
+  isMaximizing: boolean,
+): number {
+  // Base cases
+  if (depth === 0 || state.status === "finished") {
+    return evaluate(state, botId);
+  }
+
+  const moves = legalMoves(state);
+
+  if (isMaximizing) {
+    let maxEval = -Infinity;
+    for (const move of moves) {
+      const nextState = applyMove(state, move);
+      const evalScore = minimax(
+        nextState,
+        depth - 1,
+        alpha,
+        beta,
+        botId,
+        false,
+      );
+      maxEval = Math.max(maxEval, evalScore);
+      alpha = Math.max(alpha, evalScore);
+      if (beta <= alpha) break; // Prune
+    }
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    for (const move of moves) {
+      const nextState = applyMove(state, move);
+      const evalScore = minimax(nextState, depth - 1, alpha, beta, botId, true);
+      minEval = Math.min(minEval, evalScore);
+      beta = Math.min(beta, evalScore);
+      if (beta <= alpha) break; // Prune
+    }
+    return minEval;
+  }
 }
