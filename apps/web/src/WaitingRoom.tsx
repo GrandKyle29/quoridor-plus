@@ -22,7 +22,7 @@ export function WaitingRoom({
       .update({ config: newConfig })
       .eq("id", room.id);
   };
-
+  /*
   const updateMaxPlayers = async (value: number) => {
     if (!isHost) return;
     await supabase
@@ -30,7 +30,7 @@ export function WaitingRoom({
       .update({ max_players: value })
       .eq("id", room.id);
   };
-
+*/
   const startGame = async () => {
     const playerNames = room.players.map((p: any) => p.name);
 
