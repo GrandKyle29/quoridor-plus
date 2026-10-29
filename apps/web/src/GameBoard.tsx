@@ -16,6 +16,7 @@ interface GameBoardProps {
   onLeave?: (config?: GameConfig) => void; // Update this line
   isOnline?: boolean;
   configOverrides?: Partial<GameConfig>;
+  botTimeLimit?: number;
 }
 
 export function GameBoard({
@@ -29,8 +30,9 @@ export function GameBoard({
   onLeave,
   isOnline = false,
   configOverrides = {},
+  botTimeLimit = 1500,
 }: GameBoardProps) {
-  const localGame = useGame(playerNames, vsBot, configOverrides);
+  const localGame = useGame(playerNames, vsBot, configOverrides, botTimeLimit);
 
   const state = onlineState || localGame.state;
   const playMove = onlinePlayMove || localGame.playMove;

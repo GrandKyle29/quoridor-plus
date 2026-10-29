@@ -18,6 +18,7 @@ export function LocalSetup() {
     prevConfig.startingWalls ?? 10,
   );
   const [useWood, setUseWood] = useState(false);
+  const [botTimeLimit, setBotTimeLimit] = useState(1500);
 
   const startGame = () => {
     const playerNames = [name.trim() || "Player"];
@@ -30,6 +31,7 @@ export function LocalSetup() {
         playerNames,
         vsBot: true,
         useWood,
+        botTimeLimit, // <-- Add this
         configOverrides: {
           boardSize,
           goalCondition,
@@ -111,6 +113,18 @@ export function LocalSetup() {
           />{" "}
           Use Wood Texture
         </label>
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <label>Bot Think Time: {(botTimeLimit / 1000).toFixed(1)}s</label>
+        <input
+          type="range"
+          min="500" // 0.5 secs
+          max="15000" // 15 secs
+          step="500"
+          value={botTimeLimit}
+          onChange={(e) => setBotTimeLimit(Number(e.target.value))}
+          style={{ width: "100%" }}
+        />
       </div>
       <button
         onClick={startGame}

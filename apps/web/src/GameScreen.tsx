@@ -33,6 +33,7 @@ export function GameScreen() {
         playerNames={playerNames}
         vsBot={vsBot}
         localPlayerId={vsBot ? "p0" : undefined}
+        botTimeLimit={location.state?.botTimeLimit}
         useWood={location.state?.useWood}
         // UPDATE THIS LINE:
         onLeave={(config) =>

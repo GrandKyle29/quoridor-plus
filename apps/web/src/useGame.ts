@@ -20,6 +20,7 @@ export function useGame(
   playerNames: string[],
   vsBot: boolean = false,
   configOverrides: Partial<GameConfig> = {},
+  botTimeLimit: number = 1500, // Default 1.5 seconds
 ) {
   // Memoize the final config so it doesn't recreate on every render
   const finalConfig = useMemo(() => {
@@ -53,21 +54,19 @@ export function useGame(
       const currentPlayer = state.players[state.turnIndex];
 
       if (currentPlayer && currentPlayer.name.startsWith("Bot")) {
-        // Create a worker
         const worker = new Worker(new URL("./ai.worker.ts", import.meta.url), {
           type: "module",
         });
 
-        // Tell the worker to calculate the best move
-        worker.postMessage(state);
+        // NEW: Send state AND timeLimit
+        worker.postMessage({ state, timeLimit: botTimeLimit });
 
-        // Listen for the result
         worker.onmessage = (e) => {
           const bestMove = e.data;
           if (bestMove) {
             playMove(bestMove);
           }
-          worker.terminate(); // Kill the worker to free memory
+          worker.terminate();
         };
 
         return () => {
@@ -75,7 +74,7 @@ export function useGame(
         };
       }
     }
-  }, [state, vsBot]);
+  }, [state, vsBot, botTimeLimit]);
 
   return { state, playMove, resetGame, config: finalConfig };
 }

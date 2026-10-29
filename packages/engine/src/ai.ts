@@ -105,6 +105,7 @@ function getPrunedMoves(state: GameState): Move[] {
 const evalCache = new Map<string, number>();
 
 // --- 4. Evaluation Function ---
+// --- 4. Evaluation Function ---
 function evaluate(state: GameState, botId: string): number {
   if (state.status === "finished") {
     return state.winner === botId ? 100000 : -100000;
@@ -120,24 +121,37 @@ function evaluate(state: GameState, botId: string): number {
   const botDist = getDistanceToGoal(state, botId);
 
   let minOppDist = 999;
+  let maxOppWalls = 0;
   for (const p of state.players) {
     if (p.id !== botId) {
       const d = getDistanceToGoal(state, p.id);
       if (d < minOppDist) minOppDist = d;
+      if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
     }
   }
 
-  // Score:
-  // 1. Lower myDist is better (-)
-  // 2. Higher oppDist is better (+)
-  // 3. More walls is better (small +)
-  const score =
-    -botDist * 1.0 + minOppDist * 1.5 + botPlayer.wallsRemaining * 0.2;
+  // Score components:
+  // 1. Distance: I want to be closer to my goal. (-)
+  // 2. Distance: I want opponents to be far from their goals. (+)
+  let score = -botDist * 1.0 + minOppDist * 1.5;
+
+  // 3. Threat: If an opponent is 1-2 moves away from winning, panic!
+  if (minOppDist <= 2) {
+    score -= 50;
+  }
+
+  // 4. Wall Economy: Having fewer walls than the max opponent is bad.
+  const wallDiff = botPlayer.wallsRemaining - maxOppWalls;
+  if (wallDiff < 0) {
+    score += wallDiff * 2; // wallDiff is negative, so this subtracts points
+  }
+
+  // Small bonus for having walls
+  score += botPlayer.wallsRemaining * 0.1;
 
   evalCache.set(key, score);
   return score;
 }
-
 // --- 5. Minimax with Alpha-Beta Pruning ---
 function minimax(
   state: GameState,
@@ -202,17 +216,16 @@ function minimax(
 }
 
 // --- 6. Main AI Function ---
-export function getBestMove(state: GameState): Move {
+export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
-  const TIME_LIMIT = 1500; // 1.5 seconds max
 
-  evalCache.clear(); // Clear cache for fresh turn
+  evalCache.clear();
 
   let bestMove = getPrunedMoves(state)[0]!;
 
-  // Iterative Deepening
-  for (let depth = 1; depth <= 4; depth++) {
+  for (let depth = 1; depth <= 5; depth++) {
+    // Increased max depth to 5
     let currentBestScore = -Infinity;
     let currentBestMove: Move | null = null;
     let alpha = -Infinity;
@@ -222,7 +235,7 @@ export function getBestMove(state: GameState): Move {
     let timedOut = false;
 
     for (const move of moves) {
-      if (Date.now() - startTime > TIME_LIMIT) {
+      if (Date.now() - startTime > timeLimit) {
         timedOut = true;
         break;
       }
@@ -236,7 +249,7 @@ export function getBestMove(state: GameState): Move {
         botId,
         false,
         startTime,
-        TIME_LIMIT,
+        timeLimit,
       );
 
       if (score > currentBestScore) {
@@ -246,7 +259,6 @@ export function getBestMove(state: GameState): Move {
       alpha = Math.max(alpha, score);
     }
 
-    // ONLY save the result if we finished the depth without timing out
     if (!timedOut && currentBestMove) {
       bestMove = currentBestMove;
     }
