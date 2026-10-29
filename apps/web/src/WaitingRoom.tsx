@@ -13,10 +13,27 @@ export function WaitingRoom({
   myId: string;
   leaveRoom: () => void;
 }) {
+  // Helper to update settings live in the database
+  const updateConfig = async (key: string, value: any) => {
+    if (!isHost) return; // Only host can update!
+    const newConfig = { ...room.config, [key]: value };
+    await supabase
+      .from("rooms")
+      .update({ config: newConfig })
+      .eq("id", room.id);
+  };
+
+  const updateMaxPlayers = async (value: number) => {
+    if (!isHost) return;
+    await supabase
+      .from("rooms")
+      .update({ max_players: value })
+      .eq("id", room.id);
+  };
+
   const startGame = async () => {
     const playerNames = room.players.map((p: any) => p.name);
 
-    // 1. Build the config based on the Host's choices stored in the DB
     const config: GameConfig = {
       schemaVersion: 1,
       boardSize: room.config?.boardSize || 9,
@@ -31,10 +48,8 @@ export function WaitingRoom({
       turnOrder: "clockwise",
     };
 
-    // 2. Create the initial game state
     const initialState = createGame(config, playerNames);
 
-    // 3. Save it to the database to start the game
     await supabase
       .from("rooms")
       .update({
@@ -75,18 +90,103 @@ export function WaitingRoom({
         </ul>
       </div>
 
-      {/* Optional: Show the settings to the guests so they know what they are playing */}
-      <div style={{ marginBottom: "20px", color: "#ccc", fontSize: "14px" }}>
-        <p>
-          Board: {room.config?.boardSize || 9}x{room.config?.boardSize || 9}
-        </p>
-        <p>
-          Goal:{" "}
-          {room.config?.goalCondition === "center"
-            ? "King of the Hill"
-            : "Reach Opposite Side"}
-        </p>
-        <p>Walls: {room.config?.startingWalls ?? 10} per player</p>
+      {/* SETTINGS PANEL */}
+      <div
+        style={{
+          margin: "0 auto 30px auto",
+          maxWidth: "300px",
+          textAlign: "left",
+          padding: "20px",
+          border: "1px solid #555",
+          borderRadius: "8px",
+          opacity: isHost ? 1 : 0.7,
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>
+          Game Settings {!isHost && "(Host Only)"}
+        </h3>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", fontSize: "14px" }}>
+            Lobby Size:
+          </label>
+          <select
+            disabled={!isHost}
+            value={room.max_players}
+            onChange={(e) => updateMaxPlayers(Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "8px",
+              color: "black",
+              cursor: isHost ? "pointer" : "not-allowed",
+            }}
+          >
+            <option value={2}>2 Players</option>
+            <option value={4}>4 Players</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", fontSize: "14px" }}>
+            Board Size:
+          </label>
+          <select
+            disabled={!isHost}
+            value={room.config?.boardSize || 9}
+            onChange={(e) => updateConfig("boardSize", Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "8px",
+              color: "black",
+              cursor: isHost ? "pointer" : "not-allowed",
+            }}
+          >
+            <option value={7}>7x7</option>
+            <option value={9}>9x9 (Classic)</option>
+            <option value={11}>11x11</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", fontSize: "14px" }}>
+            Win Condition:
+          </label>
+          <select
+            disabled={!isHost}
+            value={room.config?.goalCondition || "opposite-edge"}
+            onChange={(e) => updateConfig("goalCondition", e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px",
+              color: "black",
+              cursor: isHost ? "pointer" : "not-allowed",
+            }}
+          >
+            <option value="opposite-edge">Reach Opposite Side</option>
+            <option value="center">King of the Hill</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", fontSize: "14px" }}>
+            Walls per Player:
+          </label>
+          <input
+            disabled={!isHost}
+            type="number"
+            value={room.config?.startingWalls ?? 10}
+            onChange={(e) =>
+              updateConfig("startingWalls", Number(e.target.value))
+            }
+            style={{
+              width: "100%",
+              padding: "8px",
+              boxSizing: "border-box",
+              color: "black",
+              cursor: isHost ? "pointer" : "not-allowed",
+            }}
+          />
+        </div>
       </div>
 
       {isHost ? (
