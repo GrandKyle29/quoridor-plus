@@ -39,8 +39,10 @@ export function GameBoard({
   const isMyTurn = isOnline
     ? localPlayerId
       ? state?.players[state.turnIndex]?.id === localPlayerId
-      : false
-    : true;
+      : false // Online: Strict ID match
+    : vsBot
+      ? state?.players[state.turnIndex]?.id === "p0" // Local Bot Game: Human is always p0
+      : true; // Local Hotseat Game: Free for all
 
   // --- SOUND SYSTEM ---
   const playSound = (type: "move" | "wall" | "win") => {
@@ -131,7 +133,7 @@ export function GameBoard({
             >
               {isMyTurn
                 ? "Your Turn"
-                : `Waiting for ${state.players[state.turnIndex]?.name}...`}
+                : `${state.players[state.turnIndex]?.name} is thinking...`}
             </h2>
             <div style={{ display: "flex", gap: "10px" }}>
               <button
