@@ -236,7 +236,7 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
 
             if (!getPlayerAt(state, diagonal)) {
               // The space is empty! This is a valid landing spot.
-              const jumpKey = `${diagonal.x},${diagonal.y}`;
+              //const jumpKey = `${diagonal.x},${diagonal.y}`;
               if (
                 !jumps.some((j) => j.x === diagonal.x && j.y === diagonal.y)
               ) {
