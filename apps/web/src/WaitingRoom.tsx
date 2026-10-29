@@ -2,7 +2,6 @@ import { supabase } from "./supabase";
 import { createGame } from "@quoridor/engine";
 import type { GameConfig } from "@quoridor/engine";
 
-// Add leaveRoom to the props!
 export function WaitingRoom({
   room,
   isHost,
@@ -17,22 +16,25 @@ export function WaitingRoom({
   const startGame = async () => {
     const playerNames = room.players.map((p: any) => p.name);
 
+    // 1. Build the config based on the Host's choices stored in the DB
     const config: GameConfig = {
       schemaVersion: 1,
-      boardSize: 9,
+      boardSize: room.config?.boardSize || 9,
       minPlayers: 2,
-      maxPlayers: room.max_players, // <-- Use the room's max players
-      startingWalls: 10,
+      maxPlayers: room.max_players || 2,
+      startingWalls: room.config?.startingWalls ?? 10,
       wallPool: "per-player",
-      goalCondition: "opposite-edge",
+      goalCondition: room.config?.goalCondition || "opposite-edge",
       allowDiagonalJumps: true,
       mustNotBlockPath: true,
       elimination: false,
       turnOrder: "clockwise",
     };
 
+    // 2. Create the initial game state
     const initialState = createGame(config, playerNames);
 
+    // 3. Save it to the database to start the game
     await supabase
       .from("rooms")
       .update({
@@ -73,6 +75,20 @@ export function WaitingRoom({
         </ul>
       </div>
 
+      {/* Optional: Show the settings to the guests so they know what they are playing */}
+      <div style={{ marginBottom: "20px", color: "#ccc", fontSize: "14px" }}>
+        <p>
+          Board: {room.config?.boardSize || 9}x{room.config?.boardSize || 9}
+        </p>
+        <p>
+          Goal:{" "}
+          {room.config?.goalCondition === "center"
+            ? "King of the Hill"
+            : "Reach Opposite Side"}
+        </p>
+        <p>Walls: {room.config?.startingWalls ?? 10} per player</p>
+      </div>
+
       {isHost ? (
         <button
           onClick={startGame}
@@ -97,7 +113,6 @@ export function WaitingRoom({
         </p>
       )}
 
-      {/* NEW: Leave Button */}
       <div>
         <button
           onClick={leaveRoom}

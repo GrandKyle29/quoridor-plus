@@ -17,11 +17,15 @@ const classicConfig: GameConfig = {
 };
 
 // Notice vsBot is the second parameter here!
-export function useGame(playerNames: string[], vsBot: boolean = false) {
-  const [state, setState] = useState<GameState>(() =>
-    createGame(classicConfig, playerNames),
-  );
-
+export function useGame(
+  playerNames: string[],
+  vsBot: boolean,
+  configOverrides: Partial<GameConfig> = {},
+) {
+  const [state, setState] = useState<GameState>(() => {
+    const finalConfig = { ...classicConfig, ...configOverrides };
+    return createGame(finalConfig, playerNames);
+  });
   const playMove = (move: Move) => {
     try {
       const nextState = applyMove(state, move);

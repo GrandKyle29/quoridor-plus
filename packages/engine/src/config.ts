@@ -1,4 +1,8 @@
-export type GoalCondition = "opposite-edge" | "any-edge" | "collect-n";
+export type GoalCondition =
+  | "opposite-edge"
+  | "any-edge"
+  | "center"
+  | "collect-n";
 export type TurnOrder = "clockwise" | "reverse-score";
 export type WallPool = "per-player" | "shared";
 

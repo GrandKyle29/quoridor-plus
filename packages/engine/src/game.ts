@@ -7,29 +7,24 @@ export function getStartPositions(count: number, size: number): Coord[] {
   const mid = Math.floor(size / 2);
   const max = size - 1;
 
-  if (count === 2) {
+  if (count === 2)
     return [
-      { x: mid, y: 0 }, // P0: Bottom
-      { x: mid, y: max }, // P1: Top
+      { x: mid, y: 0 },
+      { x: mid, y: max },
     ];
-  }
-
-  if (count === 4) {
+  if (count === 4)
     return [
-      { x: mid, y: 0 }, // P0: Bottom
-      { x: mid, y: max }, // P1: Top
-      { x: 0, y: mid }, // P2: Left
-      { x: max, y: mid }, // P3: Right
+      { x: mid, y: 0 },
+      { x: mid, y: max },
+      { x: 0, y: mid },
+      { x: max, y: mid },
     ];
-  }
-
-  if (count === 3) {
+  if (count === 3)
     return [
-      { x: mid, y: 0 }, // Bottom
-      { x: 0, y: max }, // Top-left
-      { x: max, y: max }, // Top-right
+      { x: mid, y: 0 },
+      { x: 0, y: max },
+      { x: max, y: max },
     ];
-  }
 
   throw new Error("Player count must be 2, 3, or 4");
 }
@@ -86,17 +81,21 @@ export function isPlayerGoal(
   coord: Coord,
 ): boolean {
   const { boardSize, goalCondition } = state.config;
-  if (goalCondition !== "opposite-edge") return false;
 
-  const player = state.players[playerIndex];
-  if (!player) return false;
+  if (goalCondition === "center") {
+    const center = Math.floor(boardSize / 2);
+    return coord.x === center && coord.y === center;
+  }
 
-  const startIndex = player.startIndex ?? playerIndex;
-
-  if (startIndex === 0) return coord.y === boardSize - 1; // Bottom -> Top
-  if (startIndex === 1) return coord.y === 0; // Top -> Bottom
-  if (startIndex === 2) return coord.x === boardSize - 1; // Left -> Right
-  if (startIndex === 3) return coord.x === 0; // Right -> Left
+  if (goalCondition === "opposite-edge") {
+    const player = state.players[playerIndex];
+    if (!player) return false;
+    const startIndex = player.startIndex ?? playerIndex;
+    if (startIndex === 0) return coord.y === boardSize - 1;
+    if (startIndex === 1) return coord.y === 0;
+    if (startIndex === 2) return coord.x === boardSize - 1;
+    if (startIndex === 3) return coord.x === 0;
+  }
 
   return false;
 }

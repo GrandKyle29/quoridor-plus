@@ -21,10 +21,13 @@ export function GameScreen() {
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
+    const configOverrides = location.state?.configOverrides || {};
+
     if (!playerNames) {
       navigate("/");
       return null;
     }
+
     return (
       <GameBoard
         playerNames={playerNames}
@@ -33,10 +36,11 @@ export function GameScreen() {
         useWood={location.state?.useWood}
         onLeave={() => navigate("/")}
         isOnline={false}
+        // PASS THE OVERRIDES
+        configOverrides={configOverrides}
       />
     );
   }
-
   // 2. Online Game Setup
   useEffect(() => {
     if (!roomCode) return;

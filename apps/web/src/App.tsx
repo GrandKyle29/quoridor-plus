@@ -10,6 +10,11 @@ export default function App() {
   const [joinCode, setJoinCode] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [useWood, setUseWood] = useState(false);
+  const [boardSize, setBoardSize] = useState(9);
+  const [goalCondition, setGoalCondition] = useState<
+    "opposite-edge" | "center"
+  >("opposite-edge");
+  const [startingWalls, setStartingWalls] = useState(10);
 
   const myId = getMyPlayerId();
 
@@ -29,6 +34,14 @@ export default function App() {
     setIsCreating(true);
     const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 
+    // Save the settings chosen by the host
+    const roomConfig = {
+      boardSize: boardSize,
+      goalCondition: goalCondition,
+      startingWalls: startingWalls,
+      maxPlayers: maxPlayers,
+    };
+
     const { error } = await supabase.from("rooms").insert({
       id: roomCode,
       host_name: hostName,
@@ -36,6 +49,7 @@ export default function App() {
       status: "lobby",
       max_players: maxPlayers, // <-- ADD THIS
       players: [{ id: myId, name: hostName }],
+      config: roomConfig, // <-- SAVE CONFIG
     });
 
     setIsCreating(false);
@@ -77,6 +91,24 @@ export default function App() {
       .eq("id", joinCode);
 
     navigate(`/game/${joinCode}`);
+  };
+
+  const handleStartLocalGame = () => {
+    const hostName = names[0]?.trim() || "Player 1";
+    const botName = names[1]?.trim() || "Bot";
+
+    navigate("/game", {
+      state: {
+        playerNames: [hostName, botName],
+        vsBot: true,
+        configOverrides: {
+          boardSize,
+          goalCondition,
+          startingWalls,
+          maxPlayers: 2,
+        },
+      },
+    });
   };
 
   return (
@@ -224,6 +256,74 @@ export default function App() {
             Join
           </button>
         </div>
+      </div>
+      {/* NEW LOCAL GAME UI */}
+      <div
+        style={{
+          marginTop: "30px",
+          borderTop: "1px solid #555",
+          paddingTop: "20px",
+        }}
+      >
+        <h3>Local Game (vs Bot)</h3>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block" }}>Board Size:</label>
+          <select
+            value={boardSize}
+            onChange={(e) => setBoardSize(Number(e.target.value))}
+            style={{ width: "100%", padding: "8px", color: "black" }}
+          >
+            <option value={7}>7x7</option>
+            <option value={9}>9x9 (Classic)</option>
+            <option value={11}>11x11</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block" }}>Win Condition:</label>
+          <select
+            value={goalCondition}
+            onChange={(e) => setGoalCondition(e.target.value as any)}
+            style={{ width: "100%", padding: "8px", color: "black" }}
+          >
+            <option value="opposite-edge">Reach Opposite Side (Classic)</option>
+            <option value="center">King of the Hill (Reach Center)</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block" }}>Walls per Player:</label>
+          <input
+            type="number"
+            min="0"
+            max="20"
+            value={startingWalls}
+            onChange={(e) => setStartingWalls(Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "8px",
+              boxSizing: "border-box",
+              color: "black",
+            }}
+          />
+        </div>
+
+        <button
+          onClick={handleStartLocalGame}
+          style={{
+            padding: "12px",
+            width: "100%",
+            backgroundColor: "#4ade80",
+            color: "#1f2937",
+            fontWeight: "bold",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          Start Local Game
+        </button>
       </div>
     </div>
   );

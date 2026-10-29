@@ -15,6 +15,7 @@ interface GameBoardProps {
   useWood?: boolean;
   onLeave?: () => void;
   isOnline?: boolean;
+  configOverrides?: Partial<GameConfig>;
 }
 
 export function GameBoard({
@@ -27,8 +28,9 @@ export function GameBoard({
   useWood = false,
   onLeave,
   isOnline = false,
+  configOverrides = {},
 }: GameBoardProps) {
-  const localGame = useGame(playerNames, vsBot);
+  const localGame = useGame(playerNames, vsBot, configOverrides);
 
   const state = onlineState || localGame.state;
   const playMove = onlinePlayMove || localGame.playMove;
