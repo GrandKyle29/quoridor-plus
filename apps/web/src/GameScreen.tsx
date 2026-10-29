@@ -21,7 +21,7 @@ export function GameScreen() {
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
-    const configOverrides = location.state?.configOverrides || {};
+    //const configOverrides = location.state?.configOverrides || {};
 
     if (!playerNames) {
       navigate("/");
