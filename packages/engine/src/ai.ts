@@ -3,7 +3,7 @@ import type { Move, Coord } from "./types";
 import { legalMoves } from "./moves";
 import { applyMove, isPlayerGoal } from "./game";
 
-// BFS Distance to goal (kept from before)
+// --- 1. Distance BFS ---
 function getDistanceToGoal(state: GameState, playerId: string): number {
   const player = state.players.find((p) => p.id === playerId)!;
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
@@ -17,6 +17,7 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
 
   while (queue.length > 0) {
     const { coord, dist } = queue.shift()!;
+
     if (isPlayerGoal(state, playerIndex, coord)) return dist;
 
     const dirs = [
@@ -25,8 +26,10 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
     ];
+
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
+
       if (
         next.x < 0 ||
         next.x >= boardSize ||
@@ -66,19 +69,21 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
         }
       }
       if (blocked) continue;
+
       visited.add(`${next.x},${next.y}`);
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
+
   return 999;
 }
 
-// 1. Pruning: Only consider walls near players
+// --- 2. Move Pruning ---
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
 
-  // Only keep walls within 3 tiles of ANY player
+  // Filter walls: Only keep walls within 3 tiles of any player
   const wallMoves = allMoves.filter((m) => {
     if (m.kind !== "wall") return false;
     return state.players.some((p) => {
@@ -88,9 +93,7 @@ function getPrunedMoves(state: GameState): Move[] {
     });
   });
 
-  // Sort moves to help alpha-beta pruning find good moves first:
-  // 1. Moves closer to the goal first
-  // 2. Walls second
+  // Sort moves: Pawn moves first, then walls
   return [...pawnMoves, ...wallMoves].sort((a, b) => {
     if (a.kind === "move" && b.kind === "wall") return -1;
     if (a.kind === "wall" && b.kind === "move") return 1;
@@ -98,9 +101,20 @@ function getPrunedMoves(state: GameState): Move[] {
   });
 }
 
+// --- 3. Evaluation Cache ---
+const evalCache = new Map<string, number>();
+
+// --- 4. Evaluation Function ---
 function evaluate(state: GameState, botId: string): number {
-  if (state.status === "finished")
+  if (state.status === "finished") {
     return state.winner === botId ? 100000 : -100000;
+  }
+
+  const key = `${botId}-${state.players
+    .map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`)
+    .join("|")}-${state.walls.length}`;
+
+  if (evalCache.has(key)) return evalCache.get(key)!;
 
   const botPlayer = state.players.find((p) => p.id === botId)!;
   const botDist = getDistanceToGoal(state, botId);
@@ -114,64 +128,17 @@ function evaluate(state: GameState, botId: string): number {
   }
 
   // Score:
-  // 1. Lower myDist is good (negative)
-  // 2. Higher oppDist is good (positive)
-  // 3. More walls is good (bonus)
-  return -botDist * 1.0 + minOppDist * 1.5 + botPlayer.wallsRemaining * 0.2;
+  // 1. Lower myDist is better (-)
+  // 2. Higher oppDist is better (+)
+  // 3. More walls is better (small +)
+  const score =
+    -botDist * 1.0 + minOppDist * 1.5 + botPlayer.wallsRemaining * 0.2;
+
+  evalCache.set(key, score);
+  return score;
 }
 
-export function getBestMove(state: GameState): Move {
-  const botId = state.players[state.turnIndex]!.id;
-  const startTime = Date.now();
-  const TIME_LIMIT = 1500; // Max 1.5 seconds per move
-
-  let bestMove = getPrunedMoves(state)[0]!;
-
-  // Iterative Deepening: Try depth 1, then 2, then 3, then 4...
-  // Stop if we run out of time.
-  for (let depth = 1; depth <= 4; depth++) {
-    let currentBestScore = -Infinity;
-    let currentBestMove = bestMove;
-    let alpha = -Infinity;
-    const beta = Infinity;
-
-    const moves = getPrunedMoves(state);
-    let timedOut = false;
-
-    for (const move of moves) {
-      if (Date.now() - startTime > TIME_LIMIT) {
-        timedOut = true;
-        break;
-      }
-
-      const nextState = applyMove(state, move);
-      const score = minimax(
-        nextState,
-        depth - 1,
-        alpha,
-        beta,
-        botId,
-        false,
-        startTime,
-        TIME_LIMIT,
-      );
-
-      if (score > currentBestScore) {
-        currentBestScore = score;
-        currentBestMove = move;
-      }
-      alpha = Math.max(alpha, score);
-    }
-
-    bestMove = currentBestMove;
-
-    // If we timed out, stop searching deeper
-    if (timedOut) break;
-  }
-
-  return bestMove;
-}
-
+// --- 5. Minimax with Alpha-Beta Pruning ---
 function minimax(
   state: GameState,
   depth: number,
@@ -232,4 +199,60 @@ function minimax(
     }
     return minEval;
   }
+}
+
+// --- 6. Main AI Function ---
+export function getBestMove(state: GameState): Move {
+  const botId = state.players[state.turnIndex]!.id;
+  const startTime = Date.now();
+  const TIME_LIMIT = 1500; // 1.5 seconds max
+
+  evalCache.clear(); // Clear cache for fresh turn
+
+  let bestMove = getPrunedMoves(state)[0]!;
+
+  // Iterative Deepening
+  for (let depth = 1; depth <= 4; depth++) {
+    let currentBestScore = -Infinity;
+    let currentBestMove: Move | null = null;
+    let alpha = -Infinity;
+    const beta = Infinity;
+
+    const moves = getPrunedMoves(state);
+    let timedOut = false;
+
+    for (const move of moves) {
+      if (Date.now() - startTime > TIME_LIMIT) {
+        timedOut = true;
+        break;
+      }
+
+      const nextState = applyMove(state, move);
+      const score = minimax(
+        nextState,
+        depth - 1,
+        alpha,
+        beta,
+        botId,
+        false,
+        startTime,
+        TIME_LIMIT,
+      );
+
+      if (score > currentBestScore) {
+        currentBestScore = score;
+        currentBestMove = move;
+      }
+      alpha = Math.max(alpha, score);
+    }
+
+    // ONLY save the result if we finished the depth without timing out
+    if (!timedOut && currentBestMove) {
+      bestMove = currentBestMove;
+    }
+
+    if (timedOut) break;
+  }
+
+  return bestMove;
 }
