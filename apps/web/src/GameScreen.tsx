@@ -39,6 +39,7 @@ export function GameScreen() {
           navigate("/local", { state: { prevConfig: config } })
         }
         isOnline={false}
+        configOverrides={location.state?.configOverrides || {}} // <-- ADD THIS
       />
     );
   }

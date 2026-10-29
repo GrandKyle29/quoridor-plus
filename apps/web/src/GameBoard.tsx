@@ -301,7 +301,7 @@ export function GameBoard({
             </button>
             {onLeave && (
               <button
-                onClick={onLeave}
+                onClick={() => onLeave && onLeave(state.config)}
                 style={{
                   flex: 1,
                   padding: "8px",
