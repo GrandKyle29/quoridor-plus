@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createGame, applyMove, getBestMove } from "@quoridor/engine";
 import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
@@ -16,16 +16,24 @@ const classicConfig: GameConfig = {
   turnOrder: "clockwise",
 };
 
-// Notice vsBot is the second parameter here!
 export function useGame(
   playerNames: string[],
-  vsBot: boolean,
+  vsBot: boolean = false,
   configOverrides: Partial<GameConfig> = {},
 ) {
-  const [state, setState] = useState<GameState>(() => {
-    const finalConfig = { ...classicConfig, ...configOverrides };
-    return createGame(finalConfig, playerNames);
-  });
+  // Memoize the final config so it doesn't recreate on every render
+  const finalConfig = useMemo(() => {
+    return {
+      ...classicConfig,
+      ...configOverrides,
+      maxPlayers: playerNames.length,
+    } as GameConfig;
+  }, [JSON.stringify(configOverrides), playerNames.length]);
+
+  const [state, setState] = useState<GameState>(() =>
+    createGame(finalConfig, playerNames),
+  );
+
   const playMove = (move: Move) => {
     try {
       const nextState = applyMove(state, move);
@@ -36,15 +44,13 @@ export function useGame(
   };
 
   const resetGame = () => {
-    setState(createGame(classicConfig, playerNames));
+    // Use finalConfig instead of classicConfig!
+    setState(createGame(finalConfig, playerNames));
   };
 
-  // Trigger the AI
   useEffect(() => {
     if (vsBot && state.status === "active") {
       const currentPlayer = state.players[state.turnIndex];
-
-      // Check if the current player is a bot
       if (currentPlayer && currentPlayer.name.startsWith("Bot")) {
         const timer = setTimeout(() => {
           try {
@@ -54,11 +60,10 @@ export function useGame(
             console.error("AI crashed!", err);
           }
         }, 500);
-
         return () => clearTimeout(timer);
       }
     }
   }, [state, vsBot]);
 
-  return { state, playMove, resetGame };
+  return { state, playMove, resetGame, config: finalConfig };
 }

@@ -36,6 +36,8 @@ export function GameBoard({
   const playMove = onlinePlayMove || localGame.playMove;
   const resetGame = onlineResetGame || localGame.resetGame;
 
+  const [showSettings, setShowSettings] = useState(false);
+
   const isMyTurn = isOnline
     ? localPlayerId
       ? state?.players[state.turnIndex]?.id === localPlayerId
@@ -149,6 +151,19 @@ export function GameBoard({
               >
                 Reset Game
               </button>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#4b5563",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Settings
+              </button>
               {onLeave && (
                 <button
                   onClick={onLeave}
@@ -207,7 +222,74 @@ export function GameBoard({
           </div>
         </div>
       )}
+      {showSettings && (
+        <div
+          style={{
+            position: "absolute",
+            top: "60px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#1f2937",
+            padding: "20px",
+            borderRadius: "8px",
+            border: "1px solid #4b5563",
+            zIndex: 100,
+            textAlign: "left",
+            width: "300px",
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Game Settings</h3>
+          <p>
+            <strong>Board Size:</strong> {state.config.boardSize}x
+            {state.config.boardSize}
+          </p>
+          <p>
+            <strong>Goal:</strong>{" "}
+            {state.config.goalCondition === "center"
+              ? "King of the Hill"
+              : "Reach Opposite Edge"}
+          </p>
+          <p>
+            <strong>Walls:</strong> {state.config.startingWalls} per player
+          </p>
 
+          <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+            <button
+              onClick={() => {
+                setShowSettings(false);
+                resetGame();
+              }}
+              style={{
+                flex: 1,
+                padding: "8px",
+                backgroundColor: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Restart Game
+            </button>
+            {onLeave && (
+              <button
+                onClick={onLeave}
+                style={{
+                  flex: 1,
+                  padding: "8px",
+                  backgroundColor: "#4b5563",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Quit
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div
         className={`board-container ${useWood ? "wood" : ""}`}
         style={{
