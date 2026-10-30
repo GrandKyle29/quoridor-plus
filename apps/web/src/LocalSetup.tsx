@@ -126,7 +126,20 @@ export function LocalSetup() {
           value={botTimeLimit}
           onChange={(e) => setBotTimeLimit(Number(e.target.value))}
           style={{ width: "100%" }}
-        />
+        />{" "}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "12px",
+            color: "#ccc",
+            marginTop: "4px",
+          }}
+        >
+          <span>Easy</span>
+          <span>Medium</span>
+          <span>Hard</span>
+        </div>
       </div>
       <button
         onClick={startGame}
