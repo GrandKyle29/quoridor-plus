@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
-import { getMyPlayerId } from "./utils";
-
+import { getMyPlayerId, COLOR_PALETTE } from "./utils";
 export default function App() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -51,19 +50,23 @@ export default function App() {
 
     const currentPlayers = room.players || [];
 
-    // NEW: Check if we are already in the room!
     const amIAlreadyIn = currentPlayers.some((p: any) => p.id === myId);
     if (amIAlreadyIn) {
       navigate(`/game/${joinCode}`);
       return;
     }
 
-    // (Optional) still enforce a hard cap of 4, just in case.
     if (currentPlayers.length >= 4) return alert("Room is full!");
+
+    // --- NEW: Find the first available color ---
+    const takenColors = currentPlayers.map((p: any) => p.color);
+    const availableColor =
+      COLOR_PALETTE.find((c) => !takenColors.includes(c.hex))?.hex || "#3b82f6";
+    // ---------------------------------------------
 
     const newPlayers = [
       ...currentPlayers,
-      { id: myId, name: guestName, color: "#3b82f6" },
+      { id: myId, name: guestName, color: availableColor },
     ];
     await supabase
       .from("rooms")
