@@ -25,7 +25,6 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
     ];
-
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
       if (
@@ -67,6 +66,7 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
         }
       }
       if (blocked) continue;
+
       visited.add(`${next.x},${next.y}`);
       queue.push({ coord: next, dist: dist + 1 });
     }
@@ -78,7 +78,6 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
-
   const wallMoves = allMoves.filter((m) => {
     if (m.kind !== "wall") return false;
     return state.players.some((p) => {
@@ -87,28 +86,21 @@ function getPrunedMoves(state: GameState): Move[] {
       return dx <= 3 && dy <= 3;
     });
   });
-
   return [...pawnMoves, ...wallMoves];
 }
 
-// --- 3. Evaluation Cache ---
+// --- 3. Evaluation Functions ---
 const evalCache = new Map<string, number>();
 
-// --- 4. Evaluation Function ---
-function evaluate(state: GameState, botId: string): number {
-  if (state.status === "finished") {
+function evaluateAggressive(state: GameState, botId: string): number {
+  if (state.status === "finished")
     return state.winner === botId ? 100000 : -100000;
-  }
 
   const wallString = state.walls
     .map((w) => `${w.coord.x},${w.coord.y},${w.orientation}`)
     .sort()
     .join("|");
-
-  const key = `${botId}-${state.players
-    .map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`)
-    .join("|")}-${wallString}`;
-
+  const key = `agg-${botId}-${state.players.map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`).join("|")}-${wallString}`;
   if (evalCache.has(key)) return evalCache.get(key)!;
 
   const botPlayer = state.players.find((p) => p.id === botId)!;
@@ -123,7 +115,6 @@ function evaluate(state: GameState, botId: string): number {
   }
 
   let score = minOppDist * 1.8 - botDist * 1.0;
-
   if (minOppDist <= 2) score -= 50;
 
   if (botDist < minOppDist) {
@@ -136,7 +127,52 @@ function evaluate(state: GameState, botId: string): number {
   return score;
 }
 
-// --- 5. Minimax ---
+function evaluateDefensive(state: GameState, botId: string): number {
+  if (state.status === "finished")
+    return state.winner === botId ? 100000 : -100000;
+
+  const wallString = state.walls
+    .map((w) => `${w.coord.x},${w.coord.y},${w.orientation}`)
+    .sort()
+    .join("|");
+  const key = `def-${botId}-${state.players.map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`).join("|")}-${wallString}`;
+  if (evalCache.has(key)) return evalCache.get(key)!;
+
+  const botPlayer = state.players.find((p) => p.id === botId)!;
+  const botDist = getDistanceToGoal(state, botId);
+
+  let minOppDist = 999;
+  let maxOppWalls = 0;
+  for (const p of state.players) {
+    if (p.id !== botId) {
+      const d = getDistanceToGoal(state, p.id);
+      if (d < minOppDist) minOppDist = d;
+      if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
+    }
+  }
+
+  // 1. Defensive focus: Keep my path as short as possible (-2.0 per step away).
+  let score = -(botDist * 2.0);
+
+  // 2. Paranoia: If they have many walls, they can extend my path.
+  // Add a penalty based on how many walls they have and how far I am.
+  if (maxOppWalls > 3) {
+    score -= botDist * 0.5;
+  }
+
+  // 3. Panic if they are close to winning
+  if (minOppDist <= 2) score -= 100;
+
+  // 4. Wall Economy: We don't care about walls unless we are losing.
+  if (botDist > minOppDist) {
+    score += botPlayer.wallsRemaining * 1.0;
+  }
+
+  evalCache.set(key, score);
+  return score;
+}
+
+// --- 4. Minimax with Dynamic Evaluator ---
 function minimax(
   state: GameState,
   depth: number,
@@ -146,15 +182,17 @@ function minimax(
   isMaximizing: boolean,
   startTime: number,
   timeLimit: number,
+  evaluator: (state: GameState, botId: string) => number,
 ): number {
-  if (Date.now() - startTime > timeLimit) return evaluate(state, botId);
-  if (depth === 0 || state.status === "finished") return evaluate(state, botId);
+  if (Date.now() - startTime > timeLimit) return evaluator(state, botId);
+  if (depth === 0 || state.status === "finished")
+    return evaluator(state, botId);
 
   const moves = getPrunedMoves(state);
   const sortedMoves = moves
     .map((move) => {
       const nextState = applyMove(state, move);
-      return { move, quickScore: evaluate(nextState, botId) };
+      return { move, quickScore: evaluator(nextState, botId) };
     })
     .sort((a, b) =>
       isMaximizing ? b.quickScore - a.quickScore : a.quickScore - b.quickScore,
@@ -173,6 +211,7 @@ function minimax(
         false,
         startTime,
         timeLimit,
+        evaluator,
       );
       maxEval = Math.max(maxEval, evalScore);
       alpha = Math.max(alpha, evalScore);
@@ -192,6 +231,7 @@ function minimax(
         true,
         startTime,
         timeLimit,
+        evaluator,
       );
       minEval = Math.min(minEval, evalScore);
       beta = Math.min(beta, evalScore);
@@ -201,7 +241,7 @@ function minimax(
   }
 }
 
-// --- 6. Heuristic AI ---
+// --- 5. Heuristic AI ---
 function getHeuristicMove(state: GameState): Move {
   const currentPlayer = state.players[state.turnIndex]!;
   const moves = getPrunedMoves(state);
@@ -210,47 +250,9 @@ function getHeuristicMove(state: GameState): Move {
   let bestMove = moves[0]!;
   let bestScore = -Infinity;
 
-  let currentMinOppDist = 999;
-  for (const p of state.players) {
-    if (p.id !== currentPlayer.id) {
-      const d = getDistanceToGoal(state, p.id);
-      if (d < currentMinOppDist) currentMinOppDist = d;
-    }
-  }
-
   for (const move of moves) {
     const nextState = applyMove(state, move);
-    if (
-      nextState.status === "finished" &&
-      nextState.winner === currentPlayer.id
-    )
-      return move;
-
-    const myDist = getDistanceToGoal(nextState, currentPlayer.id);
-    let minOppDist = 999;
-    let maxOppWalls = 0;
-
-    for (const p of nextState.players) {
-      if (p.id !== currentPlayer.id) {
-        const d = getDistanceToGoal(nextState, p.id);
-        if (d < minOppDist) minOppDist = d;
-        if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
-      }
-    }
-
-    let score = -myDist + minOppDist * 2.0;
-
-    if (minOppDist <= 2) score -= 100;
-
-    if (move.kind === "wall") {
-      const myWalls = nextState.players.find(
-        (p) => p.id === currentPlayer.id,
-      )!.wallsRemaining;
-      const wallDiff = myWalls - maxOppWalls;
-      if (wallDiff < 0) score += wallDiff * 5;
-      if (myDist < minOppDist) score -= 20;
-    }
-
+    const score = evaluateAggressive(nextState, currentPlayer.id);
     if (score > bestScore) {
       bestScore = score;
       bestMove = move;
@@ -259,8 +261,8 @@ function getHeuristicMove(state: GameState): Move {
   return bestMove;
 }
 
-// --- 7. Unified Entry Point ---
-export type AIMode = "heuristic" | "minimax";
+// --- 6. Unified Entry Point ---
+export type AIMode = "heuristic" | "minimax" | "defensive";
 
 export function getBestMove(
   state: GameState,
@@ -269,10 +271,13 @@ export function getBestMove(
 ): Move {
   if (mode === "heuristic") return getHeuristicMove(state);
 
-  // MINIMAX
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
   evalCache.clear();
+
+  // Choose the evaluator based on the mode
+  const evaluator =
+    mode === "defensive" ? evaluateDefensive : evaluateAggressive;
 
   const moves = getPrunedMoves(state);
   let bestMove = moves[0]!;
@@ -299,6 +304,7 @@ export function getBestMove(
         false,
         startTime,
         timeLimit,
+        evaluator,
       );
       if (score > currentBestScore) {
         currentBestScore = score;
