@@ -58,7 +58,7 @@ export default function App() {
       return;
     }
 
-    // (Optional) still enforce a hard cap of 4, just in case
+    // (Optional) still enforce a hard cap of 4, just in case.
     if (currentPlayers.length >= 4) return alert("Room is full!");
 
     const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
