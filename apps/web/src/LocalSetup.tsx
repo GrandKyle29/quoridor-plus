@@ -19,9 +19,7 @@ export function LocalSetup() {
   );
   const [useWood, setUseWood] = useState(false);
   const [botTimeLimit, setBotTimeLimit] = useState(1500);
-  //const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">(
-    "heuristic",
-  );
+  //const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">( "heuristic",);
 
   const startGame = () => {
     const playerNames = [name.trim() || "Player"];
@@ -72,7 +70,7 @@ export function LocalSetup() {
           <option value={3}>3 Bots (1v1v1v1)</option>
         </select>
       </div>
-   
+
       <div style={{ marginBottom: "10px" }}>
         <label>Board Size:</label>
         <select
