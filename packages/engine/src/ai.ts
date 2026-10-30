@@ -74,7 +74,6 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
-
   return 999;
 }
 
@@ -83,29 +82,22 @@ function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
 
-  // Filter walls: Only keep walls within 3 tiles of any player
   const wallMoves = allMoves.filter((m) => {
     if (m.kind !== "wall") return false;
     return state.players.some((p) => {
       const dx = Math.abs(m.wall.coord.x - p.position.x);
       const dy = Math.abs(m.wall.coord.y - p.position.y);
-      return dx <= 3 && dy <= 3;
+      return dx <= 4 && dy <= 4; // Increased from 3 to 4 for more aggressive wall options
     });
   });
 
-  // Sort moves: Pawn moves first, then walls
-  return [...pawnMoves, ...wallMoves].sort((a, b) => {
-    if (a.kind === "move" && b.kind === "wall") return -1;
-    if (a.kind === "wall" && b.kind === "move") return 1;
-    return 0;
-  });
+  return [...pawnMoves, ...wallMoves];
 }
 
 // --- 3. Evaluation Cache ---
 const evalCache = new Map<string, number>();
 
-// --- 4. Evaluation Function ---
-// --- 4. Evaluation Function ---
+// --- 4. Evaluation Function (Aggressive) ---
 function evaluate(state: GameState, botId: string): number {
   if (state.status === "finished") {
     return state.winner === botId ? 100000 : -100000;
@@ -121,37 +113,42 @@ function evaluate(state: GameState, botId: string): number {
   const botDist = getDistanceToGoal(state, botId);
 
   let minOppDist = 999;
-  let maxOppWalls = 0;
   for (const p of state.players) {
     if (p.id !== botId) {
       const d = getDistanceToGoal(state, p.id);
       if (d < minOppDist) minOppDist = d;
-      if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
     }
   }
 
-  // Score components:
-  // 1. Distance: I want to be closer to my goal. (-)
-  // 2. Distance: I want opponents to be far from their goals. (+)
-  let score = -botDist * 1.0 + minOppDist * 1.5;
+  // Aggressive weighting:
+  // 1. Distance to opponent goal is weighted 1.8x more than our own distance!
+  //    Blocking them by 1 step is worth more than moving 1 step forward.
+  let score = minOppDist * 1.8 - botDist * 1.0;
 
-  // 3. Threat: If an opponent is 1-2 moves away from winning, panic!
+  // 2. Panic Mode
   if (minOppDist <= 2) {
     score -= 50;
   }
 
-  // 4. Wall Economy: Having fewer walls than the max opponent is bad.
-  const wallDiff = botPlayer.wallsRemaining - maxOppWalls;
-  if (wallDiff < 0) {
-    score += wallDiff * 2; // wallDiff is negative, so this subtracts points
+  // 3. Wall Economy
+  // If I am losing the race, I need walls.
+  // If I am winning the race, I don't care about walls.
+  if (botDist < minOppDist) {
+    // I'm winning. Penalize wall usage to prevent hoarding/wasting.
+    score += botPlayer.wallsRemaining * 0.5;
+    if (state.walls.length > 0) {
+      // Slight penalty for being the one who placed the last wall if we are winning
+      score -= 0.5;
+    }
+  } else {
+    // I'm losing. Walls are my lifeline.
+    score += botPlayer.wallsRemaining * 1.5;
   }
-
-  // Small bonus for having walls
-  score += botPlayer.wallsRemaining * 0.1;
 
   evalCache.set(key, score);
   return score;
 }
+
 // --- 5. Minimax with Alpha-Beta Pruning ---
 function minimax(
   state: GameState,
@@ -163,14 +160,8 @@ function minimax(
   startTime: number,
   timeLimit: number,
 ): number {
-  // Time limit check
-  if (Date.now() - startTime > timeLimit) {
-    return evaluate(state, botId);
-  }
-
-  if (depth === 0 || state.status === "finished") {
-    return evaluate(state, botId);
-  }
+  if (Date.now() - startTime > timeLimit) return evaluate(state, botId);
+  if (depth === 0 || state.status === "finished") return evaluate(state, botId);
 
   const moves = getPrunedMoves(state);
 
@@ -215,26 +206,33 @@ function minimax(
   }
 }
 
-// --- 6. Main AI Function ---
+// --- 6. Main AI Function with Move Ordering ---
 export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
 
   evalCache.clear();
 
-  let bestMove = getPrunedMoves(state)[0]!;
+  // Move Ordering: Evaluate every move immediately (1-ply) and sort them.
+  // This makes Alpha-Beta pruning insanely fast because the best moves are checked first.
+  const moves = getPrunedMoves(state);
+  const scoredMoves = moves
+    .map((move) => {
+      const nextState = applyMove(state, move);
+      return { move, score: evaluate(nextState, botId) };
+    })
+    .sort((a, b) => b.score - a.score); // Sort highest score first
+
+  let bestMove = scoredMoves[0].move;
 
   for (let depth = 1; depth <= 5; depth++) {
-    // Increased max depth to 5
     let currentBestScore = -Infinity;
     let currentBestMove: Move | null = null;
     let alpha = -Infinity;
     const beta = Infinity;
-
-    const moves = getPrunedMoves(state);
     let timedOut = false;
 
-    for (const move of moves) {
+    for (const { move } of scoredMoves) {
       if (Date.now() - startTime > timeLimit) {
         timedOut = true;
         break;
@@ -262,7 +260,6 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
     if (!timedOut && currentBestMove) {
       bestMove = currentBestMove;
     }
-
     if (timedOut) break;
   }
 
