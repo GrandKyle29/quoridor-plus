@@ -90,7 +90,7 @@ export function GameBoard({
   if (!state) return null;
   const { boardSize } = state.config;
 
-  const PLAYER_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
+  const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
   const currentMoves = legalMoves(state);
   const validPawnMoves = isMyTurn
@@ -247,7 +247,7 @@ export function GameBoard({
                       width: "12px",
                       height: "12px",
                       borderRadius: "50%",
-                      backgroundColor: PLAYER_COLORS[i],
+                      backgroundColor: p.color || DEFAULT_COLORS[i],
                     }}
                   />
                   <strong>{p.name}</strong>
@@ -361,8 +361,11 @@ export function GameBoard({
           const playerIndex = wall.placedBy
             ? parseInt(wall.placedBy.replace("p", ""))
             : -1;
+          const placingPlayer =
+            playerIndex >= 0 ? state.players[playerIndex] : null;
           const wallColor =
-            playerIndex >= 0 ? PLAYER_COLORS[playerIndex] : "#b45309";
+            placingPlayer?.color ||
+            (playerIndex >= 0 ? DEFAULT_COLORS[playerIndex] : "#b45309");
 
           if (wall.orientation === "horizontal") {
             return (
@@ -423,6 +426,7 @@ export function GameBoard({
         {/* 4. Animated Players */}
         {state.players.map((player) => {
           const pIndex = parseInt(player.id.replace("p", ""));
+          const color = player.color || DEFAULT_COLORS[pIndex];
 
           const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
           const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
@@ -434,7 +438,7 @@ export function GameBoard({
               style={{
                 left: xPos,
                 top: yPos,
-                backgroundColor: PLAYER_COLORS[pIndex],
+                backgroundColor: color,
               }}
             />
           );

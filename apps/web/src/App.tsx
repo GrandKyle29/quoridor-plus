@@ -20,7 +20,7 @@ export default function App() {
       host_name: hostName,
       host_id: myId,
       status: "lobby",
-      players: [{ id: myId, name: hostName }],
+      players: [{ id: myId, name: hostName, color: "#ef4444" }],
       config: {
         boardSize: 9,
         goalCondition: "opposite-edge",
@@ -61,7 +61,10 @@ export default function App() {
     // (Optional) still enforce a hard cap of 4, just in case.
     if (currentPlayers.length >= 4) return alert("Room is full!");
 
-    const newPlayers = [...currentPlayers, { id: myId, name: guestName }];
+    const newPlayers = [
+      ...currentPlayers,
+      { id: myId, name: guestName, color: "#3b82f6" },
+    ];
     await supabase
       .from("rooms")
       .update({ players: newPlayers })

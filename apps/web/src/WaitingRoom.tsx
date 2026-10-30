@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { createGame } from "@quoridor/engine";
 import type { GameConfig } from "@quoridor/engine";
+import { COLOR_PALETTE } from "./utils";
 
 export function WaitingRoom({
   room,
@@ -31,8 +32,23 @@ export function WaitingRoom({
       .eq("id", room.id);
   };
 */
+  const claimColor = async (colorHex: string) => {
+    // Check if taken (by someone else)
+    if (room.players.some((p: any) => p.color === colorHex && p.id !== myId))
+      return;
+
+    const newPlayers = room.players.map((p: any) =>
+      p.id === myId ? { ...p, color: colorHex } : p,
+    );
+
+    await supabase
+      .from("rooms")
+      .update({ players: newPlayers })
+      .eq("id", room.id);
+  };
   const startGame = async () => {
     const playerNames = room.players.map((p: any) => p.name);
+    const playerColors = room.players.map((p: any) => p.color); // <-- Get colors
 
     const config: GameConfig = {
       schemaVersion: 1,
@@ -48,7 +64,7 @@ export function WaitingRoom({
       turnOrder: "clockwise",
     };
 
-    const initialState = createGame(config, playerNames);
+    const initialState = createGame(config, playerNames, playerColors); // <-- Pass colors!
 
     await supabase
       .from("rooms")
@@ -87,7 +103,53 @@ export function WaitingRoom({
           ))}
         </ul>
       </div>
+      <div
+        style={{
+          margin: "20px 0",
+          padding: "15px",
+          backgroundColor: "#2c2c2c",
+          borderRadius: "8px",
+          maxWidth: "300px",
+          marginInline: "auto",
+        }}
+      >
+        <h4 style={{ margin: "0 0 10px 0" }}>Choose Your Color</h4>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {COLOR_PALETTE.map((c) => {
+            const isTaken = room.players.some(
+              (p: any) => p.color === c.hex && p.id !== myId,
+            );
+            const isMine =
+              room.players.find((p: any) => p.id === myId)?.color === c.hex;
 
+            return (
+              <div
+                key={c.hex}
+                onClick={() => !isTaken && claimColor(c.hex)}
+                title={isTaken ? "Taken" : c.name}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: c.hex,
+                  cursor: isTaken ? "not-allowed" : "pointer",
+                  border: isMine ? "3px solid white" : "3px solid transparent",
+                  opacity: isTaken ? 0.2 : 1,
+                  boxShadow: isMine ? "0 0 10px rgba(255,255,255,0.6)" : "none",
+                  transition: "all 0.2s",
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
       {/* SETTINGS PANEL */}
       <div
         style={{

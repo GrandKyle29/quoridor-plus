@@ -31,6 +31,7 @@ export function getStartPositions(count: number, size: number): Coord[] {
 export function createGame(
   config: GameConfig,
   playerNames: string[],
+  playerColors?: string[],
 ): GameState {
   const startPositions = getStartPositions(
     playerNames.length,
@@ -50,6 +51,7 @@ export function createGame(
     connected: true,
     eliminated: false,
     startIndex: index, // <-- ADD THIS
+    color: playerColors?.[index],
   }));
 
   return {
