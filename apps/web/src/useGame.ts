@@ -20,7 +20,8 @@ export function useGame(
   playerNames: string[],
   vsBot: boolean = false,
   configOverrides: Partial<GameConfig> = {},
-  botTimeLimit: number = 1500, // Default 1.5 seconds
+  botTimeLimit: number = 1500,
+  botMode: "heuristic" | "minimax" = "heuristic",
 ) {
   // Memoize the final config so it doesn't recreate on every render
   const finalConfig = useMemo(() => {
@@ -52,29 +53,19 @@ export function useGame(
   useEffect(() => {
     if (vsBot && state.status === "active") {
       const currentPlayer = state.players[state.turnIndex];
-
       if (currentPlayer && currentPlayer.name.startsWith("Bot")) {
         const worker = new Worker(new URL("./ai.worker.ts", import.meta.url), {
           type: "module",
         });
-
-        // NEW: Send state AND timeLimit
-        worker.postMessage({ state, timeLimit: botTimeLimit });
-
+        worker.postMessage({ state, timeLimit: botTimeLimit, mode: botMode });
         worker.onmessage = (e) => {
           const bestMove = e.data;
-          if (bestMove) {
-            playMove(bestMove);
-          }
+          if (bestMove) playMove(bestMove);
           worker.terminate();
         };
-
-        return () => {
-          worker.terminate();
-        };
+        return () => worker.terminate();
       }
     }
-  }, [state, vsBot, botTimeLimit]);
-
+  }, [state, vsBot, botTimeLimit, botMode]);
   return { state, playMove, resetGame, config: finalConfig };
 }

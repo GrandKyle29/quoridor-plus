@@ -1,7 +1,7 @@
 import { getBestMove } from "@quoridor/engine";
 
 self.onmessage = (e: MessageEvent) => {
-  const { state, timeLimit } = e.data;
-  const bestMove = getBestMove(state, timeLimit);
+  const { state, timeLimit, mode } = e.data;
+  const bestMove = getBestMove(state, timeLimit, mode);
   self.postMessage(bestMove);
 };

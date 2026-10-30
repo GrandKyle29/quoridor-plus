@@ -74,7 +74,7 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
   return 999;
 }
 
-// --- 2. Move Pruning & Ordering ---
+// --- 2. Move Pruning ---
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
@@ -84,7 +84,7 @@ function getPrunedMoves(state: GameState): Move[] {
     return state.players.some((p) => {
       const dx = Math.abs(m.wall.coord.x - p.position.x);
       const dy = Math.abs(m.wall.coord.y - p.position.y);
-      return dx <= 4 && dy <= 4;
+      return dx <= 3 && dy <= 3;
     });
   });
 
@@ -100,7 +100,6 @@ function evaluate(state: GameState, botId: string): number {
     return state.winner === botId ? 100000 : -100000;
   }
 
-  // FIXED KEY: Include wall positions!
   const wallString = state.walls
     .map((w) => `${w.coord.x},${w.coord.y},${w.orientation}`)
     .sort()
@@ -123,12 +122,9 @@ function evaluate(state: GameState, botId: string): number {
     }
   }
 
-  // Aggressive weighting
   let score = minOppDist * 1.8 - botDist * 1.0;
 
-  if (minOppDist <= 2) {
-    score -= 50;
-  }
+  if (minOppDist <= 2) score -= 50;
 
   if (botDist < minOppDist) {
     score += botPlayer.wallsRemaining * 0.5;
@@ -140,7 +136,7 @@ function evaluate(state: GameState, botId: string): number {
   return score;
 }
 
-// --- 5. Minimax with Dynamic Move Ordering ---
+// --- 5. Minimax ---
 function minimax(
   state: GameState,
   depth: number,
@@ -154,19 +150,14 @@ function minimax(
   if (Date.now() - startTime > timeLimit) return evaluate(state, botId);
   if (depth === 0 || state.status === "finished") return evaluate(state, botId);
 
-  // NEW: Sort moves inside minimax to make pruning work
   const moves = getPrunedMoves(state);
   const sortedMoves = moves
     .map((move) => {
       const nextState = applyMove(state, move);
-      // Quick 1-ply heuristic to order moves
       return { move, quickScore: evaluate(nextState, botId) };
     })
-    .sort(
-      (a, b) =>
-        isMaximizing
-          ? b.quickScore - a.quickScore // Bot maximizes
-          : a.quickScore - b.quickScore, // Opponent minimizes
+    .sort((a, b) =>
+      isMaximizing ? b.quickScore - a.quickScore : a.quickScore - b.quickScore,
     );
 
   if (isMaximizing) {
@@ -210,11 +201,77 @@ function minimax(
   }
 }
 
-// --- 6. Main AI Function ---
-export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
+// --- 6. Heuristic AI ---
+function getHeuristicMove(state: GameState): Move {
+  const currentPlayer = state.players[state.turnIndex]!;
+  const moves = getPrunedMoves(state);
+  if (moves.length === 1) return moves[0]!;
+
+  let bestMove = moves[0]!;
+  let bestScore = -Infinity;
+
+  let currentMinOppDist = 999;
+  for (const p of state.players) {
+    if (p.id !== currentPlayer.id) {
+      const d = getDistanceToGoal(state, p.id);
+      if (d < currentMinOppDist) currentMinOppDist = d;
+    }
+  }
+
+  for (const move of moves) {
+    const nextState = applyMove(state, move);
+    if (
+      nextState.status === "finished" &&
+      nextState.winner === currentPlayer.id
+    )
+      return move;
+
+    const myDist = getDistanceToGoal(nextState, currentPlayer.id);
+    let minOppDist = 999;
+    let maxOppWalls = 0;
+
+    for (const p of nextState.players) {
+      if (p.id !== currentPlayer.id) {
+        const d = getDistanceToGoal(nextState, p.id);
+        if (d < minOppDist) minOppDist = d;
+        if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
+      }
+    }
+
+    let score = -myDist + minOppDist * 2.0;
+
+    if (minOppDist <= 2) score -= 100;
+
+    if (move.kind === "wall") {
+      const myWalls = nextState.players.find(
+        (p) => p.id === currentPlayer.id,
+      )!.wallsRemaining;
+      const wallDiff = myWalls - maxOppWalls;
+      if (wallDiff < 0) score += wallDiff * 5;
+      if (myDist < minOppDist) score -= 20;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+  return bestMove;
+}
+
+// --- 7. Unified Entry Point ---
+export type AIMode = "heuristic" | "minimax";
+
+export function getBestMove(
+  state: GameState,
+  timeLimit: number = 1500,
+  mode: AIMode = "heuristic",
+): Move {
+  if (mode === "heuristic") return getHeuristicMove(state);
+
+  // MINIMAX
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
-
   evalCache.clear();
 
   const moves = getPrunedMoves(state);
@@ -232,7 +289,6 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
         timedOut = true;
         break;
       }
-
       const nextState = applyMove(state, move);
       const score = minimax(
         nextState,
@@ -244,19 +300,14 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
         startTime,
         timeLimit,
       );
-
       if (score > currentBestScore) {
         currentBestScore = score;
         currentBestMove = move;
       }
       alpha = Math.max(alpha, score);
     }
-
-    if (!timedOut && currentBestMove) {
-      bestMove = currentBestMove;
-    }
+    if (!timedOut && currentBestMove) bestMove = currentBestMove;
     if (timedOut) break;
   }
-
   return bestMove;
 }
