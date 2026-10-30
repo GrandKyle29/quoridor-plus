@@ -31,7 +31,7 @@ export function GameBoard({
   onLeave,
   isOnline = false,
   configOverrides = {},
-  botMode = "heuristic",
+  //botMode = "heuristic",
   botTimeLimit = 1500,
 }: GameBoardProps) {
   const localGame = useGame(

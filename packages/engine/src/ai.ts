@@ -196,7 +196,7 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   });
 
   let bestMove = moves[0]!;
-  let bestScore = -Infinity;
+  //let bestScore = -Infinity;
 
   // Iterative deepening: Search depth 1, then 2, then 3... until time runs out
   for (let depth = 1; depth <= 6; depth++) {
@@ -234,7 +234,7 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
     // Only update the absolute best move if this depth finished completely
     if (!timedOut) {
       bestMove = currentBestMove;
-      bestScore = currentBestScore;
+      //bestScore = currentBestScore;
     }
 
     // If we ran out of time, stop searching deeper
