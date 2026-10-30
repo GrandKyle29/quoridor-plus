@@ -19,7 +19,7 @@ export function LocalSetup() {
   );
   const [useWood, setUseWood] = useState(false);
   const [botTimeLimit, setBotTimeLimit] = useState(1500);
-  const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">(
+  //const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">(
     "heuristic",
   );
 
@@ -35,7 +35,7 @@ export function LocalSetup() {
         vsBot: true,
         useWood,
         botTimeLimit,
-        botMode,
+        //botMode,
         configOverrides: {
           boardSize,
           goalCondition,
@@ -72,18 +72,7 @@ export function LocalSetup() {
           <option value={3}>3 Bots (1v1v1v1)</option>
         </select>
       </div>
-      <div style={{ marginBottom: "10px" }}>
-        <label>Bot Difficulty:</label>
-        <select
-          value={botMode}
-          onChange={(e) => setBotMode(e.target.value as any)}
-          style={{ width: "100%", padding: "8px", color: "black" }}
-        >
-          <option value="heuristic">Fast (Heuristic)</option>
-          <option value="minimax">Smart (Minimax)</option>
-          <option value="defensive">Defensive (Paranoid)</option>
-        </select>
-      </div>
+   
       <div style={{ marginBottom: "10px" }}>
         <label>Board Size:</label>
         <select

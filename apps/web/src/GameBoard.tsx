@@ -16,7 +16,7 @@ interface GameBoardProps {
   onLeave?: (config?: GameConfig) => void; // Update this line
   isOnline?: boolean;
   configOverrides?: Partial<GameConfig>;
-  botMode?: "heuristic" | "minimax";
+  //botMode?: "heuristic" | "minimax";
   botTimeLimit?: number;
 }
 
@@ -39,7 +39,7 @@ export function GameBoard({
     vsBot,
     configOverrides,
     botTimeLimit,
-    botMode,
+    //botMode,
   );
 
   const state = onlineState || localGame.state;

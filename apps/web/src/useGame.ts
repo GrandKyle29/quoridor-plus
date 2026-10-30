@@ -21,7 +21,7 @@ export function useGame(
   vsBot: boolean = false,
   configOverrides: Partial<GameConfig> = {},
   botTimeLimit: number = 1500,
-  botMode: "heuristic" | "minimax" = "heuristic",
+  //botMode: "heuristic" | "minimax" = "heuristic",
 ) {
   // Memoize the final config so it doesn't recreate on every render
   const finalConfig = useMemo(() => {
@@ -57,7 +57,7 @@ export function useGame(
         const worker = new Worker(new URL("./ai.worker.ts", import.meta.url), {
           type: "module",
         });
-        worker.postMessage({ state, timeLimit: botTimeLimit, mode: botMode });
+        worker.postMessage({ state, timeLimit: botTimeLimit });
         worker.onmessage = (e) => {
           const bestMove = e.data;
           if (bestMove) playMove(bestMove);
@@ -66,6 +66,6 @@ export function useGame(
         return () => worker.terminate();
       }
     }
-  }, [state, vsBot, botTimeLimit, botMode]);
+  }, [state, vsBot, botTimeLimit]);
   return { state, playMove, resetGame, config: finalConfig };
 }

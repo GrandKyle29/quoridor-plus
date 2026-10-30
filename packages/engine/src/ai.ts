@@ -17,6 +17,7 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
 
   while (queue.length > 0) {
     const { coord, dist } = queue.shift()!;
+
     if (isPlayerGoal(state, playerIndex, coord)) return dist;
 
     const dirs = [
@@ -25,8 +26,10 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
     ];
+
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
+
       if (
         next.x < 0 ||
         next.x >= boardSize ||
@@ -71,13 +74,39 @@ function getDistanceToGoal(state: GameState, playerId: string): number {
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
+
   return 999;
 }
 
-// --- 2. Move Pruning ---
+// --- 2. Evaluation ---
+function evaluate(state: GameState, botId: string): number {
+  if (state.status === "finished") {
+    return state.winner === botId ? 10000 : -10000;
+  }
+
+  const botPlayer = state.players.find((p) => p.id === botId)!;
+  const botDist = getDistanceToGoal(state, botId);
+
+  let minOppDist = 999;
+  for (const p of state.players) {
+    if (p.id !== botId) {
+      const d = getDistanceToGoal(state, p.id);
+      if (d < minOppDist) minOppDist = d;
+    }
+  }
+
+  // The exact heuristic from your previous version
+  let score = -botDist + minOppDist * 1.5;
+  score += botPlayer.wallsRemaining * 0.1;
+
+  return score;
+}
+
+// --- 3. Move Pruning ---
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
+
   const wallMoves = allMoves.filter((m) => {
     if (m.kind !== "wall") return false;
     return state.players.some((p) => {
@@ -86,93 +115,11 @@ function getPrunedMoves(state: GameState): Move[] {
       return dx <= 3 && dy <= 3;
     });
   });
+
   return [...pawnMoves, ...wallMoves];
 }
 
-// --- 3. Evaluation Functions ---
-const evalCache = new Map<string, number>();
-
-function evaluateAggressive(state: GameState, botId: string): number {
-  if (state.status === "finished")
-    return state.winner === botId ? 100000 : -100000;
-
-  const wallString = state.walls
-    .map((w) => `${w.coord.x},${w.coord.y},${w.orientation}`)
-    .sort()
-    .join("|");
-  const key = `agg-${botId}-${state.players.map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`).join("|")}-${wallString}`;
-  if (evalCache.has(key)) return evalCache.get(key)!;
-
-  const botPlayer = state.players.find((p) => p.id === botId)!;
-  const botDist = getDistanceToGoal(state, botId);
-
-  let minOppDist = 999;
-  for (const p of state.players) {
-    if (p.id !== botId) {
-      const d = getDistanceToGoal(state, p.id);
-      if (d < minOppDist) minOppDist = d;
-    }
-  }
-
-  let score = minOppDist * 1.8 - botDist * 1.0;
-  if (minOppDist <= 2) score -= 50;
-
-  if (botDist < minOppDist) {
-    score += botPlayer.wallsRemaining * 0.5;
-  } else {
-    score += botPlayer.wallsRemaining * 1.5;
-  }
-
-  evalCache.set(key, score);
-  return score;
-}
-
-function evaluateDefensive(state: GameState, botId: string): number {
-  if (state.status === "finished")
-    return state.winner === botId ? 100000 : -100000;
-
-  const wallString = state.walls
-    .map((w) => `${w.coord.x},${w.coord.y},${w.orientation}`)
-    .sort()
-    .join("|");
-  const key = `def-${botId}-${state.players.map((p) => `${p.position.x},${p.position.y},${p.wallsRemaining}`).join("|")}-${wallString}`;
-  if (evalCache.has(key)) return evalCache.get(key)!;
-
-  const botPlayer = state.players.find((p) => p.id === botId)!;
-  const botDist = getDistanceToGoal(state, botId);
-
-  let minOppDist = 999;
-  let maxOppWalls = 0;
-  for (const p of state.players) {
-    if (p.id !== botId) {
-      const d = getDistanceToGoal(state, p.id);
-      if (d < minOppDist) minOppDist = d;
-      if (p.wallsRemaining > maxOppWalls) maxOppWalls = p.wallsRemaining;
-    }
-  }
-
-  // 1. Defensive focus: Keep my path as short as possible (-2.0 per step away).
-  let score = -(botDist * 2.0);
-
-  // 2. Paranoia: If they have many walls, they can extend my path.
-  // Add a penalty based on how many walls they have and how far I am.
-  if (maxOppWalls > 3) {
-    score -= botDist * 0.5;
-  }
-
-  // 3. Panic if they are close to winning
-  if (minOppDist <= 2) score -= 100;
-
-  // 4. Wall Economy: We don't care about walls unless we are losing.
-  if (botDist > minOppDist) {
-    score += botPlayer.wallsRemaining * 1.0;
-  }
-
-  evalCache.set(key, score);
-  return score;
-}
-
-// --- 4. Minimax with Dynamic Evaluator ---
+// --- 4. The Minimax function with timer ---
 function minimax(
   state: GameState,
   depth: number,
@@ -182,25 +129,21 @@ function minimax(
   isMaximizing: boolean,
   startTime: number,
   timeLimit: number,
-  evaluator: (state: GameState, botId: string) => number,
 ): number {
-  if (Date.now() - startTime > timeLimit) return evaluator(state, botId);
-  if (depth === 0 || state.status === "finished")
-    return evaluator(state, botId);
+  // Time check
+  if (Date.now() - startTime > timeLimit) {
+    return evaluate(state, botId);
+  }
+
+  if (depth === 0 || state.status === "finished") {
+    return evaluate(state, botId);
+  }
 
   const moves = getPrunedMoves(state);
-  const sortedMoves = moves
-    .map((move) => {
-      const nextState = applyMove(state, move);
-      return { move, quickScore: evaluator(nextState, botId) };
-    })
-    .sort((a, b) =>
-      isMaximizing ? b.quickScore - a.quickScore : a.quickScore - b.quickScore,
-    );
 
   if (isMaximizing) {
     let maxEval = -Infinity;
-    for (const { move } of sortedMoves) {
+    for (const move of moves) {
       const nextState = applyMove(state, move);
       const evalScore = minimax(
         nextState,
@@ -211,7 +154,6 @@ function minimax(
         false,
         startTime,
         timeLimit,
-        evaluator,
       );
       maxEval = Math.max(maxEval, evalScore);
       alpha = Math.max(alpha, evalScore);
@@ -220,7 +162,7 @@ function minimax(
     return maxEval;
   } else {
     let minEval = Infinity;
-    for (const { move } of sortedMoves) {
+    for (const move of moves) {
       const nextState = applyMove(state, move);
       const evalScore = minimax(
         nextState,
@@ -231,7 +173,6 @@ function minimax(
         true,
         startTime,
         timeLimit,
-        evaluator,
       );
       minEval = Math.min(minEval, evalScore);
       beta = Math.min(beta, evalScore);
@@ -241,50 +182,26 @@ function minimax(
   }
 }
 
-// --- 5. Heuristic AI ---
-function getHeuristicMove(state: GameState): Move {
-  const currentPlayer = state.players[state.turnIndex]!;
+// --- 5. Main Entry Point ---
+export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
+  const botId = state.players[state.turnIndex]!.id;
+  const startTime = Date.now();
+
+  // Sort moves: Pawn moves first to speed up pruning
   const moves = getPrunedMoves(state);
-  if (moves.length === 1) return moves[0]!;
+  moves.sort((a, b) => {
+    if (a.kind === "move" && b.kind === "wall") return -1;
+    if (a.kind === "wall" && b.kind === "move") return 1;
+    return 0;
+  });
 
   let bestMove = moves[0]!;
   let bestScore = -Infinity;
 
-  for (const move of moves) {
-    const nextState = applyMove(state, move);
-    const score = evaluateAggressive(nextState, currentPlayer.id);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
-    }
-  }
-  return bestMove;
-}
-
-// --- 6. Unified Entry Point ---
-export type AIMode = "heuristic" | "minimax" | "defensive";
-
-export function getBestMove(
-  state: GameState,
-  timeLimit: number = 1500,
-  mode: AIMode = "heuristic",
-): Move {
-  if (mode === "heuristic") return getHeuristicMove(state);
-
-  const botId = state.players[state.turnIndex]!.id;
-  const startTime = Date.now();
-  evalCache.clear();
-
-  // Choose the evaluator based on the mode
-  const evaluator =
-    mode === "defensive" ? evaluateDefensive : evaluateAggressive;
-
-  const moves = getPrunedMoves(state);
-  let bestMove = moves[0]!;
-
-  for (let depth = 1; depth <= 5; depth++) {
+  // Iterative deepening: Search depth 1, then 2, then 3... until time runs out
+  for (let depth = 1; depth <= 6; depth++) {
+    let currentBestMove = bestMove;
     let currentBestScore = -Infinity;
-    let currentBestMove: Move | null = null;
     let alpha = -Infinity;
     const beta = Infinity;
     let timedOut = false;
@@ -294,6 +211,7 @@ export function getBestMove(
         timedOut = true;
         break;
       }
+
       const nextState = applyMove(state, move);
       const score = minimax(
         nextState,
@@ -304,16 +222,24 @@ export function getBestMove(
         false,
         startTime,
         timeLimit,
-        evaluator,
       );
+
       if (score > currentBestScore) {
         currentBestScore = score;
         currentBestMove = move;
       }
       alpha = Math.max(alpha, score);
     }
-    if (!timedOut && currentBestMove) bestMove = currentBestMove;
+
+    // Only update the absolute best move if this depth finished completely
+    if (!timedOut) {
+      bestMove = currentBestMove;
+      bestScore = currentBestScore;
+    }
+
+    // If we ran out of time, stop searching deeper
     if (timedOut) break;
   }
+
   return bestMove;
 }
