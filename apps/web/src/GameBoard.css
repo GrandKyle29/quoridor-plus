@@ -7,14 +7,13 @@
   --gap-size: clamp(3px, 1.2vw, 10px);
   --padding: clamp(6px, 1.5vw, 16px);
 
-  grid-template-columns: repeat(
-      var(--cols),
-      var(--tile-size) var(--gap-size)
-    ) var(--tile-size);
+  grid-template-columns:
+    repeat(var(--cols), var(--tile-size) var(--gap-size))
+    var(--tile-size);
   grid-template-rows: repeat(var(--rows), var(--tile-size) var(--gap-size)) var(
       --tile-size
     );
-  background-color: #4b5563;
+  background-color: #374151;
   padding: var(--padding);
   border-radius: 8px;
   position: relative;
