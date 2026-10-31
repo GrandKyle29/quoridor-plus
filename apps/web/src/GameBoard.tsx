@@ -18,6 +18,7 @@ interface GameBoardProps {
   configOverrides?: Partial<GameConfig>;
   //botMode?: "heuristic" | "minimax";
   botTimeLimit?: number;
+  onlinePlayers?: any[]; // <-- ADD THIS
 }
 
 export function GameBoard({
@@ -33,6 +34,7 @@ export function GameBoard({
   configOverrides = {},
   //botMode = "heuristic",
   botTimeLimit = 1500,
+  onlinePlayers,
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -103,6 +105,13 @@ export function GameBoard({
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
 
+  const isDisconnected = (playerName: string) => {
+    if (!onlinePlayers) return false; // Local game
+    const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
+    if (!onlinePlayer || !onlinePlayer.last_ping) return false;
+    return Date.now() - onlinePlayer.last_ping > 15000; // 15 second grace
+  };
+
   return (
     <div>
       {state.status === "finished" ? (
@@ -165,16 +174,31 @@ export function GameBoard({
           }}
         >
           <div>
-            <h2
-              style={{
-                margin: "0 0 10px 0",
-                color: isMyTurn ? "#4ade80" : "#ccc",
-              }}
-            >
-              {isMyTurn
-                ? "Your Turn"
-                : `${state.players[state.turnIndex]?.name} is thinking...`}
-            </h2>
+            {(() => {
+              const currentPlayer = state.players[state.turnIndex];
+              const currentDisconnected = currentPlayer
+                ? isDisconnected(currentPlayer.name)
+                : false;
+
+              let headerText = "Your Turn";
+              let headerColor = "#4ade80";
+
+              if (!isMyTurn && currentPlayer) {
+                if (currentDisconnected) {
+                  headerText = `${currentPlayer.name} disconnected...`;
+                  headerColor = "#ef4444"; // Red
+                } else {
+                  headerText = `${currentPlayer.name} is thinking...`;
+                  headerColor = "#ccc"; // Gray
+                }
+              }
+
+              return (
+                <h2 style={{ margin: "0 0 10px 0", color: headerColor }}>
+                  {headerText}
+                </h2>
+              );
+            })()}
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={resetGame}
@@ -221,42 +245,57 @@ export function GameBoard({
           </div>
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            {state.players.map((p, i) => (
-              <div
-                key={p.id}
-                style={{
-                  backgroundColor: "#374151",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border:
-                    state.turnIndex === i
-                      ? "2px solid #4ade80"
-                      : "2px solid transparent",
-                }}
-              >
+            {state.players.map((p, i) => {
+              const disconnected = isDisconnected(p.name);
+              return (
                 <div
+                  key={p.id}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    marginBottom: "4px",
+                    backgroundColor: "#374151",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border:
+                      state.turnIndex === i
+                        ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}` // Red if disconnected
+                        : "2px solid transparent",
+                    opacity: disconnected ? 0.5 : 1, // Gray out
                   }}
                 >
                   <div
                     style={{
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      backgroundColor: p.color || DEFAULT_COLORS[i],
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "4px",
                     }}
-                  />
-                  <strong>{p.name}</strong>
+                  >
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        backgroundColor: p.color || DEFAULT_COLORS[i],
+                      }}
+                    />
+                    <strong>{p.name}</strong>
+                    {disconnected && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          color: "#ef4444",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        (Offline)
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "14px", color: "#ccc" }}>
+                    Walls: {p.wallsRemaining}
+                  </div>
                 </div>
-                <div style={{ fontSize: "14px", color: "#ccc" }}>
-                  Walls: {p.wallsRemaining}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

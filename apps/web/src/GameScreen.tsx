@@ -254,6 +254,7 @@ export function GameScreen() {
           localPlayerId={localPlayerId}
           onLeave={() => leaveRoom(true)}
           isOnline={true}
+          onlinePlayers={room.players} // <-- ADD THIS
         />
       </div>
     );
