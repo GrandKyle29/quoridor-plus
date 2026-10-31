@@ -88,7 +88,7 @@ export function WaitingRoom({
 
   const isPlayerDisconnected = (p: any) => {
     if (!p.last_ping) return false; // They just joined, not disconnected yet
-    return Date.now() - p.last_ping > 15000; // 15 seconds grace period
+    return Date.now() - p.last_ping > 25000; // 15 seconds grace period
   };
 
   return (

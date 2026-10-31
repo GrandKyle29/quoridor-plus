@@ -120,11 +120,12 @@ export function GameScreen() {
     return () => window.removeEventListener("beforeunload", handleUnload);
   }, [room, roomCode]);
   // --- HEARTBEAT: Tell the server we are still here ---
+  // --- HEARTBEAT: Tell the server we are still here ---
   useEffect(() => {
     if (!roomCode) return;
 
     const interval = setInterval(async () => {
-      // Fetch the latest players so we don't overwrite someone else's changes
+      // Fetch the latest players array
       const { data } = await supabase
         .from("rooms")
         .select("players")
@@ -132,6 +133,7 @@ export function GameScreen() {
         .single();
       if (!data) return;
 
+      // Only update our own last_ping, leaving others alone
       const updatedPlayers = data.players.map((p: any) =>
         p.id === myId ? { ...p, last_ping: Date.now() } : p,
       );
@@ -140,7 +142,7 @@ export function GameScreen() {
         .from("rooms")
         .update({ players: updatedPlayers })
         .eq("id", roomCode);
-    }, 5000); // Ping every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [roomCode, myId]);

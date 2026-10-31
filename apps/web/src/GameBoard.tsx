@@ -109,7 +109,7 @@ export function GameBoard({
     if (!onlinePlayers) return false; // Local game
     const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
     if (!onlinePlayer || !onlinePlayer.last_ping) return false;
-    return Date.now() - onlinePlayer.last_ping > 15000; // 15 second grace
+    return Date.now() - onlinePlayer.last_ping > 25000; // 15 second grace
   };
 
   return (
