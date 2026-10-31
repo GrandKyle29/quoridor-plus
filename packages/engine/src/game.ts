@@ -28,37 +28,55 @@ export function getStartPositions(count: number, size: number): Coord[] {
 
   throw new Error("Player count must be 2, 3, or 4");
 }
+// Fisher-Yates shuffle for randomizing player order
+function shuffleArray<T>(array: T[]): T[] {
+  const newArr = [...array];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j]!, newArr[i]!];
+  }
+  return newArr;
+}
 export function createGame(
   config: GameConfig,
   playerNames: string[],
   playerColors?: string[],
 ): GameState {
-  const startPositions = getStartPositions(
-    playerNames.length,
-    config.boardSize,
-  );
+  // 1. Create a combined array of player data so we don't lose track of colors
+  const combinedPlayers = playerNames.map((name, i) => ({
+    name,
+    color: playerColors?.[i],
+  }));
+
+  // 2. Shuffle them
+  const shuffledPlayers = shuffleArray(combinedPlayers);
+
+  // 3. Extract the names back out (now shuffled)
+  const finalNames = shuffledPlayers.map((p) => p.name);
+  const startPositions = getStartPositions(finalNames.length, config.boardSize);
 
   const startingWalls =
     config.startingWalls === "scaled"
-      ? Math.max(3, 10 - playerNames.length) // just a placeholder logic for now
+      ? Math.max(3, 10 - finalNames.length)
       : config.startingWalls;
 
-  const players: Player[] = playerNames.map((name, index) => ({
+  // 4. Create the final player objects
+  const players: Player[] = shuffledPlayers.map((p, index) => ({
     id: `p${index}`,
-    name,
+    name: p.name,
     position: startPositions[index]!,
     wallsRemaining: startingWalls,
     connected: true,
     eliminated: false,
-    startIndex: index, // <-- ADD THIS
-    color: playerColors?.[index],
+    startIndex: index,
+    color: p.color, // Keep the color with the player!
   }));
 
   return {
     config,
     players,
     walls: [],
-    turnIndex: 0,
+    turnIndex: 0, // Always start with whoever ended up at index 0
     moveLog: [],
     status: "active",
     winner: null,

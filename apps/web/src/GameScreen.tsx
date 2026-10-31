@@ -22,7 +22,7 @@ export function GameScreen() {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
     //const configOverrides = location.state?.configOverrides || {};
-
+    const myName = playerNames[0]; // The human is always the first name passed from setup
     if (!playerNames) {
       navigate("/");
       return null;
@@ -32,6 +32,7 @@ export function GameScreen() {
       <GameBoard
         playerNames={playerNames}
         vsBot={vsBot}
+        myLocalName={myName}
         localPlayerId={vsBot ? "p0" : undefined}
         botTimeLimit={location.state?.botTimeLimit}
         //botMode={location.state?.botMode || "heuristic"}
@@ -226,14 +227,13 @@ export function GameScreen() {
 
   // --- Render Game Board ---
   if (room.status === "playing" && room.game_state) {
-    // Ensure we only map to a valid ID that exists in the engine!
-    const validIds = room.game_state.players.map((p: any) => p.id);
-    const myMappedId = meIndex >= 0 ? `p${meIndex}` : undefined;
+    const me = room.players.find((p: any) => p.id === myId);
 
-    const localPlayerId =
-      myMappedId && validIds.includes(myMappedId)
-        ? (myMappedId as "p0" | "p1" | "p2" | "p3")
-        : undefined;
+    // Find which engine player matches this user's name!
+    const myEnginePlayer = room.game_state.players.find(
+      (p: any) => p.name === me?.name,
+    );
+    const localPlayerId = myEnginePlayer ? myEnginePlayer.id : undefined;
 
     return (
       <div>

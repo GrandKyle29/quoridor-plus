@@ -1,4 +1,3 @@
-//GameBoard.tsx
 import { useState, useEffect, useRef } from "react";
 import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
@@ -13,12 +12,12 @@ interface GameBoardProps {
   onlineResetGame?: () => void;
   localPlayerId?: "p0" | "p1" | "p2" | "p3";
   useWood?: boolean;
-  onLeave?: (config?: GameConfig) => void; // Update this line
+  onLeave?: (config?: GameConfig) => void;
   isOnline?: boolean;
   configOverrides?: Partial<GameConfig>;
-  //botMode?: "heuristic" | "minimax";
   botTimeLimit?: number;
-  onlinePlayers?: any[]; // <-- ADD THIS
+  onlinePlayers?: any[];
+  myLocalName?: string; // NEW: For local bot games
 }
 
 export function GameBoard({
@@ -32,17 +31,11 @@ export function GameBoard({
   onLeave,
   isOnline = false,
   configOverrides = {},
-  //botMode = "heuristic",
   botTimeLimit = 1500,
   onlinePlayers,
+  myLocalName,
 }: GameBoardProps) {
-  const localGame = useGame(
-    playerNames,
-    vsBot,
-    configOverrides,
-    botTimeLimit,
-    //botMode,
-  );
+  const localGame = useGame(playerNames, vsBot, configOverrides, botTimeLimit);
 
   const state = onlineState || localGame.state;
   const playMove = onlinePlayMove || localGame.playMove;
@@ -50,13 +43,25 @@ export function GameBoard({
 
   const [showSettings, setShowSettings] = useState(false);
 
+  const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
+
+  // --- DETERMINE LOCAL PLAYER ID ---
+  // 1. Online: use the localPlayerId passed from GameScreen.
+  // 2. Local Bot: find the player whose name matches myLocalName.
+  // 3. Local Hotseat: undefined (free for all).
+  let currentLocalPlayerId = localPlayerId;
+  if (vsBot && myLocalName && state) {
+    currentLocalPlayerId = state.players.find((p) => p.name === myLocalName)
+      ?.id as any;
+  }
+
   const isMyTurn = isOnline
-    ? localPlayerId
-      ? state?.players[state.turnIndex]?.id === localPlayerId
-      : false // Online: Strict ID match
+    ? currentLocalPlayerId
+      ? state?.players[state.turnIndex]?.id === currentLocalPlayerId
+      : false
     : vsBot
-      ? state?.players[state.turnIndex]?.id === "p0" // Local Bot Game: Human is always p0
-      : true; // Local Hotseat Game: Free for all
+      ? state?.players[state.turnIndex]?.id === currentLocalPlayerId
+      : true;
 
   // --- SOUND SYSTEM ---
   const playSound = (type: "move" | "wall" | "win") => {
@@ -92,8 +97,6 @@ export function GameBoard({
   if (!state) return null;
   const { boardSize } = state.config;
 
-  const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
-
   const currentMoves = legalMoves(state);
   const validPawnMoves = isMyTurn
     ? currentMoves.filter((m) => m.kind === "move").map((m) => m.to)
@@ -106,10 +109,10 @@ export function GameBoard({
     validPawnMoves.some((m) => m.x === x && m.y === y);
 
   const isDisconnected = (playerName: string) => {
-    if (!onlinePlayers) return false; // Local game
+    if (!onlinePlayers) return false;
     const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
     if (!onlinePlayer || !onlinePlayer.last_ping) return false;
-    return Date.now() - onlinePlayer.last_ping > 25000; // 15 second grace
+    return Date.now() - onlinePlayer.last_ping > 25000;
   };
 
   return (
@@ -144,7 +147,6 @@ export function GameBoard({
               Play Again
             </button>
 
-            {/* NEW: Back to Settings button */}
             {onLeave && (
               <button
                 onClick={() => onLeave(state.config)}
@@ -186,10 +188,10 @@ export function GameBoard({
               if (!isMyTurn && currentPlayer) {
                 if (currentDisconnected) {
                   headerText = `${currentPlayer.name} disconnected...`;
-                  headerColor = "#ef4444"; // Red
+                  headerColor = "#ef4444";
                 } else {
                   headerText = `${currentPlayer.name} is thinking...`;
-                  headerColor = "#ccc"; // Gray
+                  headerColor = "#ccc";
                 }
               }
 
@@ -199,6 +201,7 @@ export function GameBoard({
                 </h2>
               );
             })()}
+
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={resetGame}
@@ -256,9 +259,9 @@ export function GameBoard({
                     borderRadius: "6px",
                     border:
                       state.turnIndex === i
-                        ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}` // Red if disconnected
+                        ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "2px solid transparent",
-                    opacity: disconnected ? 0.5 : 1, // Gray out
+                    opacity: disconnected ? 0.5 : 1,
                   }}
                 >
                   <div
@@ -274,7 +277,9 @@ export function GameBoard({
                         width: "12px",
                         height: "12px",
                         borderRadius: "50%",
-                        backgroundColor: p.color || DEFAULT_COLORS[i],
+                        backgroundColor:
+                          p.color ||
+                          DEFAULT_COLORS[parseInt(p.id.replace("p", ""))],
                       }}
                     />
                     <strong>{p.name}</strong>
@@ -299,6 +304,7 @@ export function GameBoard({
           </div>
         </div>
       )}
+
       {showSettings && (
         <div
           style={{
@@ -367,6 +373,7 @@ export function GameBoard({
           </div>
         </div>
       )}
+
       <div
         className={`board-container ${useWood ? "wood" : ""}`}
         style={{
