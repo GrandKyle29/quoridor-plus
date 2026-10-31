@@ -313,6 +313,7 @@ export function legalMoves(state: GameState): Move[] {
         ) {
           moves.push({ kind: "move", to: jumpOver });
         } else {
+          // 4. The square behind is blocked/off-board. Check diagonal jumps.
           if (state.config.allowDiagonalJumps) {
             const diagonalDirs =
               dir.dx === 0
@@ -330,13 +331,11 @@ export function legalMoves(state: GameState): Move[] {
                 x: adjacent.x + dDir.dx,
                 y: adjacent.y + dDir.dy,
               };
-              const corner: Coord = { x: x + dDir.dx, y: y + dDir.dy };
 
               if (
                 isOnBoard(diagonal, boardSize) &&
                 !getPlayerAt(state, diagonal) &&
-                !isBlockedByWall(state, adjacent, diagonal) &&
-                !isBlockedByWall(state, corner, diagonal)
+                !isBlockedByWall(state, adjacent, diagonal)
               ) {
                 moves.push({ kind: "move", to: diagonal });
               }
