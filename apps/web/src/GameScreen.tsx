@@ -257,6 +257,7 @@ export function GameScreen() {
           onLeave={() => leaveRoom(true)}
           isOnline={true}
           onlinePlayers={room.players} // <-- ADD THIS
+          isHost={isHost}
         />
       </div>
     );

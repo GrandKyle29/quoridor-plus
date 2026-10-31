@@ -18,6 +18,7 @@ interface GameBoardProps {
   botTimeLimit?: number;
   onlinePlayers?: any[];
   myLocalName?: string; // NEW: For local bot games
+  isHost?: boolean; // <-- NEW
 }
 
 export function GameBoard({
@@ -34,6 +35,7 @@ export function GameBoard({
   botTimeLimit = 1500,
   onlinePlayers,
   myLocalName,
+  isHost = false,
 }: GameBoardProps) {
   const localGame = useGame(playerNames, vsBot, configOverrides, botTimeLimit);
 
@@ -123,7 +125,6 @@ export function GameBoard({
             Game Over! {state.players.find((p) => p.id === state.winner)?.name}{" "}
             wins!
           </h2>
-
           <div
             style={{
               display: "flex",
@@ -132,36 +133,77 @@ export function GameBoard({
               marginTop: "15px",
             }}
           >
-            <button
-              onClick={resetGame}
-              style={{
-                padding: "8px 16px",
-                fontSize: "16px",
-                backgroundColor: "#3b82f6",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Play Again
-            </button>
+            {/* LOCAL GAME BUTTONS */}
+            {!isOnline && (
+              <>
+                <button
+                  onClick={resetGame}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "16px",
+                    backgroundColor: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Play Again
+                </button>
+                {onLeave && (
+                  <button
+                    onClick={() => onLeave(state.config)}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#4b5563",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back to Setup
+                  </button>
+                )}
+              </>
+            )}
 
-            {onLeave && (
-              <button
-                onClick={() => onLeave(state.config)}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "16px",
-                  backgroundColor: "#4b5563",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Back to Setup
-              </button>
+            {/* ONLINE GAME BUTTONS */}
+            {isOnline && (
+              <>
+                {isHost ? (
+                  <button
+                    onClick={resetGame}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Return to Lobby
+                  </button>
+                ) : (
+                  <button
+                    onClick={onLeave}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Leave Game
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -337,23 +379,26 @@ export function GameBoard({
           </p>
 
           <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-            <button
-              onClick={() => {
-                setShowSettings(false);
-                resetGame();
-              }}
-              style={{
-                flex: 1,
-                padding: "8px",
-                backgroundColor: "#ef4444",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Restart Game
-            </button>
+            {/* Only show Restart to local players or the host */}
+            {(!isOnline || isHost) && (
+              <button
+                onClick={() => {
+                  setShowSettings(false);
+                  resetGame();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "8px",
+                  backgroundColor: "#ef4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Restart Game
+              </button>
+            )}
             {onLeave && (
               <button
                 onClick={() => onLeave && onLeave(state.config)}
