@@ -74,6 +74,17 @@ export function WaitingRoom({
       })
       .eq("id", room.id);
   };
+  const kickPlayer = async (playerIdToKick: string) => {
+    if (!isHost) return; // Only host can kick
+
+    // Remove the player from the array
+    const newPlayers = room.players.filter((p: any) => p.id !== playerIdToKick);
+
+    await supabase
+      .from("rooms")
+      .update({ players: newPlayers })
+      .eq("id", room.id);
+  };
 
   return (
     <div style={{ textAlign: "center", marginTop: "50px", color: "white" }}>
@@ -96,9 +107,47 @@ export function WaitingRoom({
         <h3>Players ({room.players.length})</h3>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {room.players.map((p: any) => (
-            <li key={p.id} style={{ fontSize: "18px", margin: "10px 0" }}>
+            <li
+              key={p.id}
+              style={{
+                fontSize: "18px",
+                margin: "10px 0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                position: "relative",
+                padding: "5px",
+              }}
+            >
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  borderRadius: "50%",
+                  backgroundColor: p.color || "#fff",
+                }}
+              />
               {p.name} {p.id === room.host_id && "(Host)"}{" "}
               {p.id === myId && "(You)"}
+              {/* NEW: Kick Button */}
+              {isHost && p.id !== myId && (
+                <button
+                  onClick={() => kickPlayer(p.id)}
+                  style={{
+                    marginLeft: "10px",
+                    padding: "2px 8px",
+                    backgroundColor: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                  }}
+                >
+                  Kick
+                </button>
+              )}
             </li>
           ))}
         </ul>
