@@ -62,6 +62,7 @@ export function WaitingRoom({
       mustNotBlockPath: true,
       elimination: false,
       turnOrder: "clockwise",
+      randomizeSpawns: room.config?.randomizeSpawns !== false,
     };
 
     const initialState = createGame(config, playerNames, playerColors); // <-- Pass colors!
@@ -316,6 +317,26 @@ export function WaitingRoom({
               cursor: isHost ? "pointer" : "not-allowed",
             }}
           />
+        </div>
+        <div style={{ marginBottom: "10px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
+            }}
+          >
+            <input
+              type="checkbox"
+              disabled={!isHost}
+              checked={room.config?.randomizeSpawns !== false}
+              onChange={(e) =>
+                updateConfig("randomizeSpawns", e.target.checked)
+              }
+            />
+            Randomize Start Positions
+          </label>
         </div>
       </div>
 

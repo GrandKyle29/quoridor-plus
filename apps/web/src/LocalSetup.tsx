@@ -20,7 +20,7 @@ export function LocalSetup() {
   const [useWood, setUseWood] = useState(false);
   const [botTimeLimit, setBotTimeLimit] = useState(1500);
   //const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">( "heuristic",);
-
+  const [randomizeSpawns, setRandomizeSpawns] = useState(true);
   const startGame = () => {
     const playerNames = [name.trim() || "Player"];
     for (let i = 0; i < botCount; i++) {
@@ -39,6 +39,7 @@ export function LocalSetup() {
           goalCondition,
           startingWalls,
           maxPlayers: botCount + 1,
+          randomizeSpawns, // <-- Add this
         },
       },
     });
@@ -105,7 +106,16 @@ export function LocalSetup() {
           style={{ width: "100%", padding: "8px" }}
         />
       </div>
-
+      <div style={{ marginBottom: "10px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={randomizeSpawns}
+            onChange={(e) => setRandomizeSpawns(e.target.checked)}
+          />
+          Randomize Starting Positions
+        </label>
+      </div>
       <div style={{ marginBottom: "20px" }}>
         <label>
           <input

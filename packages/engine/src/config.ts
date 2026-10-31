@@ -18,4 +18,5 @@ export type GameConfig = {
   mustNotBlockPath: boolean; // your Classic-mode rule, now a flag
   elimination: boolean;
   turnOrder: TurnOrder;
+  randomizeSpawns?: boolean; // <-- ADD THIS
 };

@@ -49,7 +49,10 @@ export function createGame(
   }));
 
   // 2. Shuffle them
-  const shuffledPlayers = shuffleArray(combinedPlayers);
+  const shouldRandomize = config.randomizeSpawns !== false;
+  const shuffledPlayers = shouldRandomize
+    ? shuffleArray(combinedPlayers)
+    : combinedPlayers;
 
   // 3. Extract the names back out (now shuffled)
   const finalNames = shuffledPlayers.map((p) => p.name);

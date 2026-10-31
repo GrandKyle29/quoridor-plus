@@ -14,6 +14,7 @@ const classicConfig: GameConfig = {
   mustNotBlockPath: true,
   elimination: false,
   turnOrder: "clockwise",
+  randomizeSpawns: true,
 };
 
 export function useGame(

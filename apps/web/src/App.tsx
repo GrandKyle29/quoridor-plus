@@ -24,6 +24,7 @@ export default function App() {
         boardSize: 9,
         goalCondition: "opposite-edge",
         startingWalls: 10,
+        randomizeSpawns: true,
       },
     });
 
