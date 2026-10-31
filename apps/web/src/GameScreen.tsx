@@ -185,7 +185,7 @@ export function GameScreen() {
     );
 
   const me = room.players.find((p: any) => p.id === myId);
-  const meIndex = room.players.indexOf(me);
+  //const meIndex = room.players.indexOf(me);
   const isHost = room.host_id === myId;
 
   // If we are not in the player list, we are a spectator (or we left)
