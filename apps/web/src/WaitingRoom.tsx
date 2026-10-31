@@ -86,6 +86,11 @@ export function WaitingRoom({
       .eq("id", room.id);
   };
 
+  const isPlayerDisconnected = (p: any) => {
+    if (!p.last_ping) return false; // They just joined, not disconnected yet
+    return Date.now() - p.last_ping > 15000; // 15 seconds grace period
+  };
+
   return (
     <div style={{ textAlign: "center", marginTop: "50px", color: "white" }}>
       <h2>Waiting Room</h2>
@@ -106,50 +111,66 @@ export function WaitingRoom({
       >
         <h3>Players ({room.players.length})</h3>
         <ul style={{ listStyle: "none", padding: 0 }}>
-          {room.players.map((p: any) => (
-            <li
-              key={p.id}
-              style={{
-                fontSize: "18px",
-                margin: "10px 0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                position: "relative",
-                padding: "5px",
-              }}
-            >
-              <div
+          {room.players.map((p: any) => {
+            const disconnected = isPlayerDisconnected(p);
+            return (
+              <li
+                key={p.id}
                 style={{
-                  width: "12px",
-                  height: "12px",
-                  borderRadius: "50%",
-                  backgroundColor: p.color || "#fff",
+                  fontSize: "18px",
+                  margin: "10px 0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  position: "relative",
+                  padding: "5px",
+                  opacity: disconnected ? 0.5 : 1,
                 }}
-              />
-              {p.name} {p.id === room.host_id && "(Host)"}{" "}
-              {p.id === myId && "(You)"}
-              {/* NEW: Kick Button */}
-              {isHost && p.id !== myId && (
-                <button
-                  onClick={() => kickPlayer(p.id)}
+              >
+                <div
                   style={{
-                    marginLeft: "10px",
-                    padding: "2px 8px",
-                    backgroundColor: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "12px",
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: p.color || "#fff",
                   }}
-                >
-                  Kick
-                </button>
-              )}
-            </li>
-          ))}
+                />
+                {p.name} {p.id === room.host_id && "(Host)"}{" "}
+                {p.id === myId && "(You)"}
+                {/* Show Disconnected Tag */}
+                {disconnected && (
+                  <span
+                    style={{
+                      color: "#ef4444",
+                      fontSize: "12px",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    (Disconnected)
+                  </span>
+                )}
+                {/* Kick Button */}
+                {isHost && p.id !== myId && (
+                  <button
+                    onClick={() => kickPlayer(p.id)}
+                    style={{
+                      marginLeft: "10px",
+                      padding: "2px 8px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Kick
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
       <div

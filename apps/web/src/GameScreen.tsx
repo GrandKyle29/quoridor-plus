@@ -119,6 +119,31 @@ export function GameScreen() {
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
   }, [room, roomCode]);
+  // --- HEARTBEAT: Tell the server we are still here ---
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const interval = setInterval(async () => {
+      // Fetch the latest players so we don't overwrite someone else's changes
+      const { data } = await supabase
+        .from("rooms")
+        .select("players")
+        .eq("id", roomCode)
+        .single();
+      if (!data) return;
+
+      const updatedPlayers = data.players.map((p: any) =>
+        p.id === myId ? { ...p, last_ping: Date.now() } : p,
+      );
+
+      await supabase
+        .from("rooms")
+        .update({ players: updatedPlayers })
+        .eq("id", roomCode);
+    }, 5000); // Ping every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [roomCode, myId]);
 
   // 5. Play Move (Online)
   const playMove = async (move: Move) => {
