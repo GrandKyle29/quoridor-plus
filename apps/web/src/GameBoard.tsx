@@ -95,6 +95,7 @@ export function GameBoard({
     }
     prevStatus.current = state.status;
   }, [state]);
+
   if (!state) return null;
   const { boardSize } = state.config;
 
@@ -132,6 +133,7 @@ export function GameBoard({
               marginTop: "15px",
             }}
           >
+            {/* LOCAL GAME BUTTONS */}
             {!isOnline && (
               <>
                 <button
@@ -166,6 +168,8 @@ export function GameBoard({
                 )}
               </>
             )}
+
+            {/* ONLINE GAME BUTTONS */}
             {isOnline && (
               <>
                 {isHost ? (
@@ -220,8 +224,10 @@ export function GameBoard({
               const currentDisconnected = currentPlayer
                 ? isDisconnected(currentPlayer.name)
                 : false;
+
               let headerText = "Your Turn";
               let headerColor = "#4ade80";
+
               if (!isMyTurn && currentPlayer) {
                 if (currentDisconnected) {
                   headerText = `${currentPlayer.name} disconnected...`;
@@ -231,11 +237,13 @@ export function GameBoard({
                   headerColor = "#ccc";
                 }
               }
+
               return (
                 <h2
                   style={{
                     margin: "0 0 10px 0",
                     color: headerColor,
+                    // NEW: Prevent long names from stretching the board
                     maxWidth: "300px",
                     whiteSpace: "nowrap",
                     overflow: "hidden",
@@ -250,19 +258,21 @@ export function GameBoard({
 
             <div style={{ display: "flex", gap: "10px" }}>
               {(!isOnline || isHost) && (
-                <button
-                  onClick={resetGame}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Reset Game
-                </button>
+                <>
+                  <button
+                    onClick={resetGame}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reset Game
+                  </button>
+                </>
               )}
               <button
                 onClick={() => setShowSettings(!showSettings)}
@@ -310,6 +320,7 @@ export function GameBoard({
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "2px solid transparent",
                     opacity: disconnected ? 0.5 : 1,
+                    // NEW: Lock card width and truncate long names
                     width: "130px",
                     display: "flex",
                     flexDirection: "column",
@@ -337,6 +348,7 @@ export function GameBoard({
                     />
                     <strong
                       style={{
+                        // NEW: Truncate long names in cards
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -354,7 +366,6 @@ export function GameBoard({
           </div>
         </div>
       )}
-
       {showSettings && (
         <div
           style={{
@@ -385,7 +396,9 @@ export function GameBoard({
           <p>
             <strong>Walls:</strong> {state.config.startingWalls} per player
           </p>
+
           <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+            {/* Only show Restart to local players or the host */}
             {(!isOnline || isHost) && (
               <button
                 onClick={() => {
@@ -424,11 +437,8 @@ export function GameBoard({
           </div>
         </div>
       )}
-
-      {/* Centering Wrapper */}
       <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
         <div style={{ maxWidth: "600px", width: "100%" }}>
-          {/* The Board Container */}
           <div
             className={`board-container ${useWood ? "wood" : ""}`}
             style={{
@@ -437,7 +447,7 @@ export function GameBoard({
               "--rows": boardSize - 1,
             }}
           >
-            {/* Tiles */}
+            {/* 1. The Tiles */}
             {Array.from({ length: boardSize }).map((_, y) =>
               Array.from({ length: boardSize }).map((_, x) => {
                 const isTarget = isValidMove(x, y);
@@ -457,7 +467,7 @@ export function GameBoard({
               }),
             )}
 
-            {/* Walls */}
+            {/* 2. Placed Walls */}
             {state.walls.map((wall, i) => {
               const playerIndex = wall.placedBy
                 ? parseInt(wall.placedBy.replace("p", ""))
@@ -467,6 +477,7 @@ export function GameBoard({
               const wallColor =
                 placingPlayer?.color ||
                 (playerIndex >= 0 ? DEFAULT_COLORS[playerIndex] : "#b45309");
+
               if (wall.orientation === "horizontal") {
                 return (
                   <div
@@ -494,7 +505,7 @@ export function GameBoard({
               }
             })}
 
-            {/* Ghost Walls */}
+            {/* 3. Ghost Walls */}
             {validWallMoves.map((wall, i) => {
               if (wall.orientation === "horizontal") {
                 return (
@@ -523,23 +534,32 @@ export function GameBoard({
               }
             })}
 
-            {/* Players */}
+            {/* 4. Animated Players */}
             {state.players.map((player) => {
               const pIndex = parseInt(player.id.replace("p", ""));
               const color = player.color || DEFAULT_COLORS[pIndex];
+
               const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
               const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
+
               return (
                 <div
                   key={player.id}
                   className="player-piece-animated"
-                  style={{ left: xPos, top: yPos, backgroundColor: color }}
+                  style={{
+                    left: xPos,
+                    top: yPos,
+                    backgroundColor: color,
+                  }}
                 />
               );
             })}
-          </div>
-        </div>
-      </div>
+          </div>{" "}
+          {/* <--- THIS CLOSES board-container */}
+        </div>{" "}
+        {/* <--- THIS CLOSES maxWidth: 600px */}
+      </div>{" "}
+      {/* <--- THIS CLOSES display: flex */}
     </div>
   );
 }
