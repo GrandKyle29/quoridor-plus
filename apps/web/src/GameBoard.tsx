@@ -245,19 +245,23 @@ export function GameBoard({
             })()}
 
             <div style={{ display: "flex", gap: "10px" }}>
-              <button
-                onClick={resetGame}
-                style={{
-                  padding: "6px 12px",
-                  backgroundColor: "#ef4444",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Reset Game
-              </button>
+              {(!isOnline || isHost) && (
+                <>
+                  <button
+                    onClick={resetGame}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reset Game
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 style={{
