@@ -212,9 +212,10 @@ export function GameBoard({
           style={{
             marginBottom: "20px",
             display: "flex",
-            gap: "20px",
-            alignItems: "flex-start",
+            gap: "15px",
+            alignItems: "center",
             flexWrap: "wrap",
+            justifyContent: "center",
           }}
         >
           <div>
@@ -247,6 +248,7 @@ export function GameBoard({
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
+                    fontSize: "clamp(18px, 5vw, 24px)",
                   }}
                 >
                   {headerText}
@@ -436,122 +438,124 @@ export function GameBoard({
           </div>
         </div>
       )}
+      <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+        <div style={{ maxWidth: "600px", width: "100%" }}>
+          <div
+            className={`board-container ${useWood ? "wood" : ""}`}
+            style={{
+              // @ts-ignore
+              "--cols": boardSize - 1,
+              "--rows": boardSize - 1,
+            }}
+          ></div>
+          {/* 1. The Tiles */}
+          {Array.from({ length: boardSize }).map((_, y) =>
+            Array.from({ length: boardSize }).map((_, x) => {
+              const isTarget = isValidMove(x, y);
+              return (
+                <div
+                  key={`tile-${x}-${y}`}
+                  onClick={() =>
+                    isTarget && playMove({ kind: "move", to: { x, y } })
+                  }
+                  className={`tile ${isTarget ? "valid-move" : ""}`}
+                  style={{
+                    gridColumn: x * 2 + 1,
+                    gridRow: (boardSize - 1 - y) * 2 + 1,
+                  }}
+                />
+              );
+            }),
+          )}
 
-      <div
-        className={`board-container ${useWood ? "wood" : ""}`}
-        style={{
-          // @ts-ignore
-          "--cols": boardSize - 1,
-          "--rows": boardSize - 1,
-        }}
-      >
-        {/* 1. The Tiles */}
-        {Array.from({ length: boardSize }).map((_, y) =>
-          Array.from({ length: boardSize }).map((_, x) => {
-            const isTarget = isValidMove(x, y);
+          {/* 2. Placed Walls */}
+          {state.walls.map((wall, i) => {
+            const playerIndex = wall.placedBy
+              ? parseInt(wall.placedBy.replace("p", ""))
+              : -1;
+            const placingPlayer =
+              playerIndex >= 0 ? state.players[playerIndex] : null;
+            const wallColor =
+              placingPlayer?.color ||
+              (playerIndex >= 0 ? DEFAULT_COLORS[playerIndex] : "#b45309");
+
+            if (wall.orientation === "horizontal") {
+              return (
+                <div
+                  key={`placed-h-${i}`}
+                  className="placed-wall"
+                  style={{
+                    backgroundColor: wallColor,
+                    gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
+                    gridRow: (boardSize - 1 - wall.coord.y) * 2,
+                  }}
+                />
+              );
+            } else {
+              return (
+                <div
+                  key={`placed-v-${i}`}
+                  className="placed-wall"
+                  style={{
+                    backgroundColor: wallColor,
+                    gridColumn: wall.coord.x * 2 + 2,
+                    gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
+                  }}
+                />
+              );
+            }
+          })}
+
+          {/* 3. Ghost Walls */}
+          {validWallMoves.map((wall, i) => {
+            if (wall.orientation === "horizontal") {
+              return (
+                <div
+                  key={`ghost-h-${i}`}
+                  className="ghost-wall"
+                  onClick={() => playMove({ kind: "wall", wall })}
+                  style={{
+                    gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
+                    gridRow: (boardSize - 1 - wall.coord.y) * 2,
+                  }}
+                />
+              );
+            } else {
+              return (
+                <div
+                  key={`ghost-v-${i}`}
+                  className="ghost-wall"
+                  onClick={() => playMove({ kind: "wall", wall })}
+                  style={{
+                    gridColumn: wall.coord.x * 2 + 2,
+                    gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
+                  }}
+                />
+              );
+            }
+          })}
+
+          {/* 4. Animated Players */}
+          {state.players.map((player) => {
+            const pIndex = parseInt(player.id.replace("p", ""));
+            const color = player.color || DEFAULT_COLORS[pIndex];
+
+            const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
+            const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
+
             return (
               <div
-                key={`tile-${x}-${y}`}
-                onClick={() =>
-                  isTarget && playMove({ kind: "move", to: { x, y } })
-                }
-                className={`tile ${isTarget ? "valid-move" : ""}`}
+                key={player.id}
+                className="player-piece-animated"
                 style={{
-                  gridColumn: x * 2 + 1,
-                  gridRow: (boardSize - 1 - y) * 2 + 1,
+                  left: xPos,
+                  top: yPos,
+                  backgroundColor: color,
                 }}
               />
             );
-          }),
-        )}
-
-        {/* 2. Placed Walls */}
-        {state.walls.map((wall, i) => {
-          const playerIndex = wall.placedBy
-            ? parseInt(wall.placedBy.replace("p", ""))
-            : -1;
-          const placingPlayer =
-            playerIndex >= 0 ? state.players[playerIndex] : null;
-          const wallColor =
-            placingPlayer?.color ||
-            (playerIndex >= 0 ? DEFAULT_COLORS[playerIndex] : "#b45309");
-
-          if (wall.orientation === "horizontal") {
-            return (
-              <div
-                key={`placed-h-${i}`}
-                className="placed-wall"
-                style={{
-                  backgroundColor: wallColor,
-                  gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
-                  gridRow: (boardSize - 1 - wall.coord.y) * 2,
-                }}
-              />
-            );
-          } else {
-            return (
-              <div
-                key={`placed-v-${i}`}
-                className="placed-wall"
-                style={{
-                  backgroundColor: wallColor,
-                  gridColumn: wall.coord.x * 2 + 2,
-                  gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
-                }}
-              />
-            );
-          }
-        })}
-
-        {/* 3. Ghost Walls */}
-        {validWallMoves.map((wall, i) => {
-          if (wall.orientation === "horizontal") {
-            return (
-              <div
-                key={`ghost-h-${i}`}
-                className="ghost-wall"
-                onClick={() => playMove({ kind: "wall", wall })}
-                style={{
-                  gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
-                  gridRow: (boardSize - 1 - wall.coord.y) * 2,
-                }}
-              />
-            );
-          } else {
-            return (
-              <div
-                key={`ghost-v-${i}`}
-                className="ghost-wall"
-                onClick={() => playMove({ kind: "wall", wall })}
-                style={{
-                  gridColumn: wall.coord.x * 2 + 2,
-                  gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
-                }}
-              />
-            );
-          }
-        })}
-
-        {/* 4. Animated Players */}
-        {state.players.map((player) => {
-          const pIndex = parseInt(player.id.replace("p", ""));
-          const color = player.color || DEFAULT_COLORS[pIndex];
-
-          const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
-          const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
-
-          return (
-            <div
-              key={player.id}
-              className="player-piece-animated"
-              style={{
-                left: xPos,
-                top: yPos,
-                backgroundColor: color,
-              }}
-            />
-          );
-        })}
+          })}
+        </div>
       </div>
     </div>
   );

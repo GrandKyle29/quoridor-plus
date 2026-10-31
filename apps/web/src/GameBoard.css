@@ -2,24 +2,26 @@
 /* The main board container */
 .board-container {
   display: grid;
-  --tile-size: clamp(20px, 8vw, 40px);
-  --gap-size: clamp(4px, 1.5vw, 10px);
-  grid-template-columns:
-    repeat(var(--cols), var(--tile-size) var(--gap-size))
-    var(--tile-size);
+  /* Make tiles smaller on mobile: min 16px, preferred 8vw, max 40px */
+  --tile-size: clamp(16px, 7.5vw, 40px);
+  --gap-size: clamp(3px, 1.2vw, 10px);
+  --padding: clamp(6px, 1.5vw, 16px);
+
+  grid-template-columns: repeat(
+      var(--cols),
+      var(--tile-size) var(--gap-size)
+    ) var(--tile-size);
   grid-template-rows: repeat(var(--rows), var(--tile-size) var(--gap-size)) var(
       --tile-size
     );
-  background-color: #374151;
-  padding: clamp(8px, 2vw, 16px);
+  background-color: #4b5563;
+  padding: var(--padding);
   border-radius: 8px;
   position: relative;
   max-width: 100%;
-  overflow-x: auto;
-  --padding: clamp(8px, 2vw, 16px);
-  padding: var(--padding);
+  margin: 0 auto; /* Center it */
+  box-sizing: border-box; /* Ensure padding doesn't cause overflow */
 }
-
 /* Classic Tile */
 .tile {
   background-color: #4b5563; /* #e5e7eb;*/
