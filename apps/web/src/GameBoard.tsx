@@ -238,7 +238,17 @@ export function GameBoard({
               }
 
               return (
-                <h2 style={{ margin: "0 0 10px 0", color: headerColor }}>
+                <h2
+                  style={{
+                    margin: "0 0 10px 0",
+                    color: headerColor,
+                    // NEW: Prevent long names from stretching the board
+                    maxWidth: "300px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {headerText}
                 </h2>
               );
@@ -308,6 +318,11 @@ export function GameBoard({
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "2px solid transparent",
                     opacity: disconnected ? 0.5 : 1,
+                    // NEW: Lock card width and truncate long names
+                    width: "130px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
                   }}
                 >
                   <div
@@ -326,20 +341,19 @@ export function GameBoard({
                         backgroundColor:
                           p.color ||
                           DEFAULT_COLORS[parseInt(p.id.replace("p", ""))],
+                        flexShrink: 0,
                       }}
                     />
-                    <strong>{p.name}</strong>
-                    {disconnected && (
-                      <span
-                        style={{
-                          fontSize: "10px",
-                          color: "#ef4444",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        (Offline)
-                      </span>
-                    )}
+                    <strong
+                      style={{
+                        // NEW: Truncate long names in cards
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {p.name}
+                    </strong>
                   </div>
                   <div style={{ fontSize: "14px", color: "#ccc" }}>
                     Walls: {p.wallsRemaining}

@@ -127,6 +127,10 @@ export function WaitingRoom({
                   position: "relative",
                   padding: "5px",
                   opacity: disconnected ? 0.5 : 1,
+                  // NEW: Allow wrapping and constrain width
+                  maxWidth: "280px",
+                  marginInline: "auto",
+                  wordBreak: "break-all",
                 }}
               >
                 <div
@@ -135,11 +139,15 @@ export function WaitingRoom({
                     height: "12px",
                     borderRadius: "50%",
                     backgroundColor: p.color || "#fff",
+                    // NEW: Prevent circle from shrinking
+                    flexShrink: 0,
                   }}
                 />
-                {p.name} {p.id === room.host_id && "(Host)"}{" "}
-                {p.id === myId && "(You)"}
-                {/* Show Disconnected Tag */}
+                <span style={{ textAlign: "left" }}>
+                  {p.name} {p.id === room.host_id && "(Host)"}{" "}
+                  {p.id === myId && "(You)"}
+                </span>
+
                 {disconnected && (
                   <span
                     style={{
@@ -151,7 +159,7 @@ export function WaitingRoom({
                     (Disconnected)
                   </span>
                 )}
-                {/* Kick Button */}
+
                 {isHost && p.id !== myId && (
                   <button
                     onClick={() => kickPlayer(p.id)}
@@ -164,6 +172,7 @@ export function WaitingRoom({
                       borderRadius: "4px",
                       cursor: "pointer",
                       fontSize: "12px",
+                      flexShrink: 0,
                     }}
                   >
                     Kick
