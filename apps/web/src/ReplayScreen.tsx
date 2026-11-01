@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { GameBoard } from "./GameBoard";
 import { decodeShareCode } from "./shareCode";
 import type { GameState } from "@quoridor/engine";
-import { createGame, applyMove } from "@quoridor/engine";
+import { applyMove } from "@quoridor/engine";
 
 export function ReplayScreen() {
   const navigate = useNavigate();

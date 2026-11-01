@@ -38,7 +38,10 @@ export function decodeShareCode(code: string): GameState | null {
       name: p.name,
       color: p.color,
       position: startPositions[p.startIndex]!,
-      wallsRemaining: data.config.startingWalls,
+      wallsRemaining:
+        typeof data.config.startingWalls === "number"
+          ? data.config.startingWalls
+          : Math.max(3, 10 - data.players.length),
       connected: true,
       eliminated: false,
       startIndex: p.startIndex,
