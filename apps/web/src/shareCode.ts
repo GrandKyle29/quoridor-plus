@@ -12,7 +12,7 @@ export function encodeShareCode(state: GameState): string {
   const data: ShareData = {
     config: state.config,
     playerNames: state.players.map((p) => p.name),
-        playerColors: state.players.map(p => p.color || "#ffffff"),,
+    playerColors: state.players.map((p) => p.color || "#ffffff"),
     moveLog: state.moveLog,
   };
 
