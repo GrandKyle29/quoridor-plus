@@ -133,10 +133,17 @@ export function GameScreen() {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-      setRoom({ ...room, game_state: nextState });
+
+      // Strip the moveLog before broadcasting. It grows unboundedly and
+      // eventually exceeds Supabase's realtime payload size limit, which
+      // causes the game_state field to be dropped from the broadcast —
+      // leaving clients with `game_state: undefined` and a gray screen.
+      const broadcastState = { ...nextState, moveLog: [] };
+
+      setRoom({ ...room, game_state: broadcastState });
       await supabase
         .from("rooms")
-        .update({ game_state: nextState })
+        .update({ game_state: broadcastState })
         .eq("id", roomCode);
     } catch (e) {
       console.error("Illegal move", e);
