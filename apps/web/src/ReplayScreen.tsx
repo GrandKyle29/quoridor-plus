@@ -24,17 +24,32 @@ export function ReplayScreen() {
     }
   }, [shareCode]);
 
-  // Update the replay state when the step changes
+  import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
+
+  // ... inside ReplayScreen component ...
+
   useEffect(() => {
     if (!fullGame) return;
 
-    // Start from a fresh copy of the initial state
+    const startPositions = getStartPositionsRaw(
+      fullGame.players.length,
+      fullGame.config.boardSize,
+    );
+    const startingWalls =
+      typeof fullGame.config.startingWalls === "number"
+        ? fullGame.config.startingWalls
+        : Math.max(3, 10 - fullGame.players.length);
+
+    // Reset players to their initial state
+    const initialPlayers = fullGame.players.map((p, i) => ({
+      ...p,
+      position: startPositions[p.startIndex ?? i]!,
+      wallsRemaining: startingWalls,
+    }));
+
     let state: GameState = {
-      ...fullGame,
-      players: fullGame.players.map((p) => ({
-        ...p,
-        position: { ...p.position },
-      })),
+      config: fullGame.config,
+      players: initialPlayers,
       walls: [],
       turnIndex: 0,
       moveLog: [],
@@ -42,11 +57,9 @@ export function ReplayScreen() {
       winner: null,
     };
 
-    // Apply moves up to currentStep
     for (let i = 0; i < currentStep; i++) {
       state = applyMove(state, fullGame.moveLog[i]!);
     }
-
     setReplayState(state);
   }, [fullGame, currentStep]);
 
