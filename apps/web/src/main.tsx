@@ -6,6 +6,7 @@ import { GameScreen } from "./GameScreen";
 import "./index.css";
 import { LocalSetup } from "./LocalSetup";
 import { ReplayScreen } from "./ReplayScreen";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
