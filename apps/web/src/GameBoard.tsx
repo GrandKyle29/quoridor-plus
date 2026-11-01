@@ -106,9 +106,38 @@ export function GameBoard({
   }, [state]);
 
   if (!state) return null;
+  if (
+    !state.players ||
+    !Array.isArray(state.players) ||
+    state.players.length === 0
+  ) {
+    console.error("🚨 Malformed state.players:", state);
+    return (
+      <div style={{ color: "white", padding: "20px" }}>Loading players...</div>
+    );
+  }
+  if (!state.walls || !Array.isArray(state.walls)) {
+    console.error("🚨 Malformed state.walls:", state);
+    return (
+      <div style={{ color: "white", padding: "20px" }}>Loading walls...</div>
+    );
+  }
   const { boardSize } = state.config;
 
-  const currentMoves = legalMoves(state);
+  let currentMoves: Move[] = [];
+  try {
+    currentMoves = legalMoves(state);
+  } catch (err) {
+    console.error("🚨 legalMoves threw:", err);
+    console.error("🚨 State at time of crash:", JSON.stringify(state, null, 2));
+    return (
+      <div style={{ color: "white", padding: "20px", fontFamily: "monospace" }}>
+        <h2>🚨 legalMoves crashed</h2>
+        <p>Check the browser console for the full state and error.</p>
+        <button onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
   const validPawnMoves = isMyTurn
     ? currentMoves.filter((m) => m.kind === "move").map((m) => m.to)
     : [];

@@ -1,4 +1,3 @@
-//GameScreen.tsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
@@ -21,8 +20,6 @@ export function GameScreen() {
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
-    //const configOverrides = location.state?.configOverrides || {};
-    //const myName = playerNames[0]; // The human is always the first name passed from setup
     if (!playerNames) {
       navigate("/");
       return null;
@@ -36,7 +33,6 @@ export function GameScreen() {
         botTimeLimit={location.state?.botTimeLimit || 1500}
         localPlayerId={vsBot ? "p0" : undefined}
         useWood={location.state?.useWood}
-        // NEW: Pass the colors
         playerColors={location.state?.playerColors}
         configOverrides={location.state?.configOverrides || {}}
         onLeave={(config) =>
@@ -46,6 +42,7 @@ export function GameScreen() {
       />
     );
   }
+
   // 2. Online Game Setup
   useEffect(() => {
     if (!roomCode) return;
@@ -90,25 +87,15 @@ export function GameScreen() {
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
 
     if (newPlayers.length === 0) {
-      // If everyone is gone, delete the room
       await supabase.from("rooms").delete().eq("id", roomCode);
     } else {
       const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
-
-      // Only reset to lobby if the game is NOT playing.
-      // If it IS playing, we just remove the player and leave the game running.
-      const newStatus = room.status === "lobby" ? "lobby" : room.status;
-      const newState =
-        room.status === "lobby" ? room.game_state : room.game_state;
-      // ^ We are keeping game_state exactly as it is.
 
       await supabase
         .from("rooms")
         .update({
           players: newPlayers,
           host_id: newHostId,
-          status: newStatus,
-          game_state: newState,
         })
         .eq("id", roomCode);
     }
@@ -116,23 +103,11 @@ export function GameScreen() {
     if (isExplicitLeave) navigate("/");
   };
 
-  // 4. Handle Browser Close / Refresh
-  /*useEffect(() => {
-    const handleUnload = () => {
-      if (room && roomCode) {
-        leaveRoom(false);
-      }
-    };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [room, roomCode]);*/
-  // --- HEARTBEAT: Tell the server we are still here ---
-  // --- HEARTBEAT: Tell the server we are still here ---
+  // 4. Heartbeat
   useEffect(() => {
     if (!roomCode) return;
 
     const interval = setInterval(async () => {
-      // Fetch the latest players array
       const { data } = await supabase
         .from("rooms")
         .select("players")
@@ -140,7 +115,6 @@ export function GameScreen() {
         .single();
       if (!data) return;
 
-      // Only update our own last_ping, leaving others alone
       const updatedPlayers = data.players.map((p: any) =>
         p.id === myId ? { ...p, last_ping: Date.now() } : p,
       );
@@ -191,7 +165,6 @@ export function GameScreen() {
     );
 
   const me = room.players.find((p: any) => p.id === myId);
-  //const meIndex = room.players.indexOf(me);
   const isHost = room.host_id === myId;
 
   // If we are not in the player list, we are a spectator (or we left)
@@ -232,10 +205,24 @@ export function GameScreen() {
   }
 
   // --- Render Game Board ---
-  if (room.status === "playing" && room.game_state) {
-    const me = room.players.find((p: any) => p.id === myId);
+  if (room.status === "playing") {
+    if (
+      !room.game_state ||
+      !room.game_state.players ||
+      !Array.isArray(room.game_state.players) ||
+      room.game_state.players.length === 0
+    ) {
+      console.error("🚨 Malformed game_state:", room.game_state);
+      return (
+        <div
+          style={{ color: "white", textAlign: "center", marginTop: "100px" }}
+        >
+          <p>Loading game state...</p>
+          <button onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      );
+    }
 
-    // Find which engine player matches this user's name!
     const myEnginePlayer = room.game_state.players.find(
       (p: any) => p.name === me?.name,
     );
@@ -262,7 +249,7 @@ export function GameScreen() {
           localPlayerId={localPlayerId}
           onLeave={() => leaveRoom(true)}
           isOnline={true}
-          onlinePlayers={room.players} // <-- ADD THIS
+          onlinePlayers={room.players}
           isHost={isHost}
         />
       </div>
