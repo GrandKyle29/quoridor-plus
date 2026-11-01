@@ -3,6 +3,7 @@ import { useGame } from "./useGame";
 import { legalMoves } from "@quoridor/engine";
 import type { GameState, Move, GameConfig } from "@quoridor/engine";
 import "./GameBoard.css";
+import { encodeShareCode } from "./shareCode";
 
 interface GameBoardProps {
   playerNames: string[];
@@ -208,6 +209,26 @@ export function GameBoard({
                     Leave Game
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    const code = encodeShareCode(state);
+                    const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
+                    navigator.clipboard.writeText(url);
+                    alert("Replay link copied to clipboard!");
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "16px",
+                    backgroundColor: "#eab308",
+                    color: "#1f2937",
+                    fontWeight: "bold",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Share Replay
+                </button>
               </>
             )}
           </div>
