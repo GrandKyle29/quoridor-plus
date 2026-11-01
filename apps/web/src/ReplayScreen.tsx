@@ -32,7 +32,7 @@ export function ReplayScreen() {
     let state = createGame(
       fullGame.config,
       fullGame.players.map((p) => p.name),
-      fullGame.players.map((p) => p.color),
+      fullGame.players.map((p) => p.color || "#ffffff"),
     );
     for (let i = 0; i < currentStep; i++) {
       state = applyMove(state, fullGame.moveLog[i]!);
