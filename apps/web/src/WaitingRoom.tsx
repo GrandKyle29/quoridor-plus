@@ -51,7 +51,7 @@ export function WaitingRoom({
     const playerColors = room.players.map((p: any) => p.color); // <-- Get colors
 
     const config: GameConfig = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       boardSize: room.config?.boardSize || 9,
       minPlayers: 2, // Engine requires at least 2
       maxPlayers: 4, // Max possible, engine will adapt

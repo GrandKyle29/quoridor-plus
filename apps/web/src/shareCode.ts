@@ -1,5 +1,10 @@
 import LZString from "lz-string";
-import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
+import {
+  applyMove,
+  getStartPositionsRaw,
+  encodeMoves,
+  decodeMoves,
+} from "@quoridor/engine";
 import type { GameConfig, GameState, Move, Player } from "@quoridor/engine";
 
 export type ShareData = {
@@ -9,47 +14,49 @@ export type ShareData = {
 };
 
 export function encodeShareCode(state: GameState): string {
-  const data: ShareData = {
+  const data = {
     config: state.config,
     players: state.players.map((p) => ({
       name: p.name,
       color: p.color || "#ffffff",
       startIndex: p.startIndex ?? 0,
     })),
-    moveLog: state.moveLog,
+    // Compact-encode the move log
+    moveLog: encodeMoves(state.moveLog),
   };
 
   const json = JSON.stringify(data);
-
-  // Compress + encode with lz-string. The "compressToEncodedURIComponent"
-  // produces URL-safe output using only A-Z, a-z, 0-9, +, $ (or similar).
   return LZString.compressToEncodedURIComponent(json);
 }
 
 export function decodeShareCode(code: string): GameState | null {
   try {
-    // Decompress
     const json = LZString.decompressFromEncodedURIComponent(code);
     if (!json) throw new Error("Invalid share code");
 
-    const data = JSON.parse(json) as ShareData;
+    const raw = JSON.parse(json);
 
-    if (data.config.schemaVersion !== 1) {
+    if (raw.config.schemaVersion !== 2) {
       throw new Error(
-        `This replay uses schema version ${data.config.schemaVersion}, which is not compatible with the current game.`,
+        `This replay uses schema version ${raw.config.schemaVersion}, which is not compatible with the current game.`,
       );
     }
 
+    const config: GameConfig = raw.config;
+    const playerData: { name: string; color: string; startIndex: number }[] =
+      raw.players;
+    const moveLog: Move[] = decodeMoves(raw.moveLog);
+
     const startPositions = getStartPositionsRaw(
-      data.players.length,
-      data.config.boardSize,
+      playerData.length,
+      config.boardSize,
     );
     const startingWalls =
-      typeof data.config.startingWalls === "number"
-        ? data.config.startingWalls
-        : Math.max(3, 10 - data.players.length);
+      typeof config.startingWalls === "number"
+        ? config.startingWalls
+        : Math.max(3, 10 - playerData.length);
 
-    const players: Player[] = data.players.map((p, i) => ({
+    const players: Player[] = playerData.map((p, i) => ({
       id: `p${i}`,
       name: p.name,
       color: p.color,
@@ -61,7 +68,7 @@ export function decodeShareCode(code: string): GameState | null {
     }));
 
     let currentState: GameState = {
-      config: data.config,
+      config,
       players,
       walls: [],
       turnIndex: 0,
@@ -70,11 +77,11 @@ export function decodeShareCode(code: string): GameState | null {
       winner: null,
     };
 
-    for (const move of data.moveLog) {
+    for (const move of moveLog) {
       currentState = applyMove(currentState, move);
     }
 
-    return { ...currentState, moveLog: data.moveLog };
+    return { ...currentState, moveLog };
   } catch (e) {
     console.error("Failed to decode share code:", e);
     return null;

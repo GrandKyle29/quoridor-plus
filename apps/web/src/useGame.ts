@@ -3,7 +3,7 @@ import { createGame, applyMove } from "@quoridor/engine";
 import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
 const classicConfig: GameConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   boardSize: 9,
   minPlayers: 2,
   maxPlayers: 4,

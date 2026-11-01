@@ -3,7 +3,7 @@ import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
 
 const classicConfig: GameConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   boardSize: 9,
   minPlayers: 2,
   maxPlayers: 4,
@@ -18,7 +18,9 @@ const classicConfig: GameConfig = {
 
 describe("createGame", () => {
   it("sets up a 2-player game correctly", () => {
-    const state = createGame(classicConfig, ["Alice", "Bob"]);
+    // Force no-shuffle so the test is deterministic
+    const deterministicConfig = { ...classicConfig, randomizeSpawns: false };
+    const state = createGame(deterministicConfig, ["Alice", "Bob"]);
 
     // 2 players
     expect(state.players.length).toBe(2);
@@ -38,6 +40,30 @@ describe("createGame", () => {
     expect(state.turnIndex).toBe(0);
     expect(state.status).toBe("active");
     expect(state.winner).toBeNull();
+  });
+  it("shuffles players when randomizeSpawns is true", () => {
+    const shuffledConfig = { ...classicConfig, randomizeSpawns: true };
+
+    // Run multiple times to verify it's actually randomizing
+    let sawDifferentOrder = false;
+    let prevFirstPlayerName = "";
+
+    for (let i = 0; i < 20; i++) {
+      const state = createGame(shuffledConfig, [
+        "Alice",
+        "Bob",
+        "Charlie",
+        "Dave",
+      ]);
+      const firstName = state.players[0]?.name ?? "";
+      if (prevFirstPlayerName && firstName !== prevFirstPlayerName) {
+        sawDifferentOrder = true;
+        break;
+      }
+      prevFirstPlayerName = firstName;
+    }
+
+    expect(sawDifferentOrder).toBe(true);
   });
 
   it("sets up a 4-player game correctly", () => {

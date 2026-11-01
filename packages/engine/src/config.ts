@@ -7,7 +7,7 @@ export type TurnOrder = "clockwise" | "reverse-score";
 export type WallPool = "per-player" | "shared";
 
 export type GameConfig = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   boardSize: number; // odd, e.g. 9
   minPlayers: number;
   maxPlayers: number;
