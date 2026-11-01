@@ -206,23 +206,46 @@ export function GameScreen() {
 
   // --- Render Game Board ---
   if (room.status === "playing") {
-    if (
-      !room.game_state ||
-      !room.game_state.players ||
-      !Array.isArray(room.game_state.players) ||
-      room.game_state.players.length === 0
-    ) {
-      console.error("🚨 Malformed game_state:", room.game_state);
+    const gs = room.game_state;
+    const gsIsObject = gs && typeof gs === "object";
+    const gsHasPlayers =
+      gsIsObject &&
+      gs.players &&
+      Array.isArray(gs.players) &&
+      gs.players.length > 0;
+
+    if (!gsHasPlayers) {
+      console.error("🚨 MALFORMED GAME_STATE");
+      console.error("  room.status:", room.status);
+      console.error("  room.game_state type:", typeof gs);
+      console.error("  room.game_state value:", gs);
+      console.error("  gsIsObject:", gsIsObject);
+      if (gsIsObject) {
+        console.error("  gs.players type:", typeof gs.players);
+        console.error("  gs.players isArray:", Array.isArray(gs.players));
+        console.error("  gs.players length:", gs.players?.length);
+        console.error("  gs.players value:", gs.players);
+      }
       return (
         <div
           style={{ color: "white", textAlign: "center", marginTop: "100px" }}
         >
-          <p>Loading game state...</p>
+          <p>Game state not ready. Check console for details.</p>
+          <p style={{ color: "#ccc", fontSize: "12px" }}>
+            {typeof gs === "string"
+              ? `game_state is a string of length ${gs.length}`
+              : gs === null
+                ? "game_state is null"
+                : gs === undefined
+                  ? "game_state is undefined"
+                  : gsIsObject
+                    ? "game_state is an object but players is missing/empty"
+                    : `game_state is ${typeof gs}`}
+          </p>
           <button onClick={() => window.location.reload()}>Reload</button>
         </div>
       );
     }
-
     const myEnginePlayer = room.game_state.players.find(
       (p: any) => p.name === me?.name,
     );

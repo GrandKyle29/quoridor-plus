@@ -18,8 +18,8 @@ interface GameBoardProps {
   configOverrides?: Partial<GameConfig>;
   botTimeLimit?: number;
   onlinePlayers?: any[];
-  myLocalName?: string; // NEW: For local bot games
-  isHost?: boolean; // <-- NEW
+  myLocalName?: string;
+  isHost?: boolean;
   playerColors?: string[];
 }
 
@@ -37,8 +37,8 @@ export function GameBoard({
   botTimeLimit = 1500,
   onlinePlayers,
   myLocalName,
-  playerColors,
   isHost = false,
+  playerColors,
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -57,9 +57,6 @@ export function GameBoard({
   const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
   // --- DETERMINE LOCAL PLAYER ID ---
-  // 1. Online: use the localPlayerId passed from GameScreen.
-  // 2. Local Bot: find the player whose name matches myLocalName.
-  // 3. Local Hotseat: undefined (free for all).
   let currentLocalPlayerId = localPlayerId;
   if (vsBot && myLocalName && state) {
     currentLocalPlayerId = state.players.find((p) => p.name === myLocalName)
@@ -105,23 +102,107 @@ export function GameBoard({
     prevStatus.current = state.status;
   }, [state]);
 
+  // --- DIAGNOSTIC GUARDS ---
   if (!state) return null;
+
   if (
     !state.players ||
     !Array.isArray(state.players) ||
     state.players.length === 0
   ) {
-    console.error("🚨 Malformed state.players:", state);
+    console.error("🚨 GameBoard: malformed state.players", state);
     return (
-      <div style={{ color: "white", padding: "20px" }}>Loading players...</div>
+      <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
+        <h2>🚨 Game state has no players</h2>
+        <pre
+          style={{
+            fontSize: "11px",
+            backgroundColor: "#1a1a1a",
+            padding: "10px",
+            overflow: "auto",
+            maxHeight: "300px",
+            textAlign: "left",
+          }}
+        >
+          {JSON.stringify(state, null, 2)}
+        </pre>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: "10px",
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
+          Reload
+        </button>
+      </div>
     );
   }
+
   if (!state.walls || !Array.isArray(state.walls)) {
-    console.error("🚨 Malformed state.walls:", state);
+    console.error("🚨 GameBoard: malformed state.walls", state);
     return (
-      <div style={{ color: "white", padding: "20px" }}>Loading walls...</div>
+      <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
+        <h2>🚨 Game state has malformed walls</h2>
+        <pre
+          style={{
+            fontSize: "11px",
+            backgroundColor: "#1a1a1a",
+            padding: "10px",
+            overflow: "auto",
+            maxHeight: "300px",
+            textAlign: "left",
+          }}
+        >
+          {JSON.stringify(state, null, 2)}
+        </pre>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: "10px",
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
+          Reload
+        </button>
+      </div>
     );
   }
+
+  if (!state.config || typeof state.config.boardSize !== "number") {
+    console.error("🚨 GameBoard: malformed state.config", state);
+    return (
+      <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
+        <h2>🚨 Game state has malformed config</h2>
+        <pre
+          style={{
+            fontSize: "11px",
+            backgroundColor: "#1a1a1a",
+            padding: "10px",
+            overflow: "auto",
+            maxHeight: "300px",
+            textAlign: "left",
+          }}
+        >
+          {JSON.stringify(state, null, 2)}
+        </pre>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: "10px",
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
+
+  // --- SAFE TO RENDER ---
   const { boardSize } = state.config;
 
   let currentMoves: Move[] = [];
@@ -129,15 +210,27 @@ export function GameBoard({
     currentMoves = legalMoves(state);
   } catch (err) {
     console.error("🚨 legalMoves threw:", err);
-    console.error("🚨 State at time of crash:", JSON.stringify(state, null, 2));
+    console.error("🚨 State at crash:", JSON.stringify(state, null, 2));
     return (
-      <div style={{ color: "white", padding: "20px", fontFamily: "monospace" }}>
+      <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
         <h2>🚨 legalMoves crashed</h2>
-        <p>Check the browser console for the full state and error.</p>
-        <button onClick={() => window.location.reload()}>Reload</button>
+        <p style={{ color: "#ccc" }}>
+          Check the browser console for the full state and error.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: "10px",
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
+          Reload
+        </button>
       </div>
     );
   }
+
   const validPawnMoves = isMyTurn
     ? currentMoves.filter((m) => m.kind === "move").map((m) => m.to)
     : [];
@@ -154,6 +247,7 @@ export function GameBoard({
     if (!onlinePlayer || !onlinePlayer.last_ping) return false;
     return Date.now() - onlinePlayer.last_ping > 25000;
   };
+
   return (
     <div
       style={{
@@ -180,56 +274,69 @@ export function GameBoard({
               flexWrap: "wrap",
             }}
           >
-            {/* LOCAL BUTTONS */}
             {!isOnline && (
               <>
                 <button
                   onClick={resetGame}
-                  style={
-                    {
-                      /* ... */
-                    }
-                  }
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "16px",
+                    backgroundColor: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
                 >
                   Play Again
                 </button>
                 {onLeave && (
                   <button
                     onClick={() => onLeave(state.config)}
-                    style={
-                      {
-                        /* ... */
-                      }
-                    }
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#4b5563",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
                   >
                     Back to Setup
                   </button>
                 )}
               </>
             )}
-
-            {/* ONLINE BUTTONS */}
             {isOnline && (
               <>
                 {isHost ? (
                   <button
                     onClick={resetGame}
-                    style={
-                      {
-                        /* ... */
-                      }
-                    }
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
                   >
                     Return to Lobby
                   </button>
                 ) : (
                   <button
                     onClick={() => onLeave && onLeave(state.config)}
-                    style={
-                      {
-                        /* ... */
-                      }
-                    }
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "16px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
                   >
                     Leave Game
                   </button>
@@ -237,7 +344,7 @@ export function GameBoard({
               </>
             )}
 
-            {/* SHARE REPLAY - Outside both blocks, so it appears for everyone */}
+            {/* SHARE REPLAY — visible to everyone */}
             <button
               onClick={() => {
                 const code = encodeShareCode(state);
