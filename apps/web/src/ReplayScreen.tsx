@@ -30,7 +30,7 @@ export function ReplayScreen() {
 
     // Reconstruct the state at the current step
     let state = createGame(
-      fullGame.config,
+      { ...fullGame.config, randomizeSpawns: false },
       fullGame.players.map((p) => p.name),
       fullGame.players.map((p) => p.color || "#ffffff"),
     );
