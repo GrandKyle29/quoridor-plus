@@ -155,13 +155,22 @@ function checkWin(state: GameState, player: Player): boolean {
 export function applyMove(state: GameState, move: Move): GameState {
   // 1. Is it this player's turn, and is the game active?
   if (state.status !== "active") throw new Error("Game is not active");
-
-  // 2. Is the move actually legal?
-  // We use .some() and JSON.stringify for a deep equality check
+  //2. is the move legal?
   const validMoves = legalMoves(state);
-  const isValid = validMoves.some(
-    (m) => JSON.stringify(m) === JSON.stringify(move),
-  );
+  const isValid = validMoves.some((m) => {
+    if (m.kind === "move" && move.kind === "move") {
+      return m.to.x === move.to.x && m.to.y === move.to.y;
+    }
+    if (m.kind === "wall" && move.kind === "wall") {
+      return (
+        m.wall.coord.x === move.wall.coord.x &&
+        m.wall.coord.y === move.wall.coord.y &&
+        m.wall.orientation === move.wall.orientation
+      );
+    }
+    return false;
+  });
+
   if (!isValid) throw new Error("Illegal move");
 
   // 3. Create a fresh copy of the state
