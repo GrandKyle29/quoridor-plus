@@ -90,11 +90,17 @@ export function GameScreen() {
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
 
     if (newPlayers.length === 0) {
+      // If everyone is gone, delete the room
       await supabase.from("rooms").delete().eq("id", roomCode);
     } else {
       const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
-      const newStatus = room.status === "playing" ? "lobby" : room.status;
-      const newState = room.status === "playing" ? null : room.game_state;
+
+      // Only reset to lobby if the game is NOT playing.
+      // If it IS playing, we just remove the player and leave the game running.
+      const newStatus = room.status === "lobby" ? "lobby" : room.status;
+      const newState =
+        room.status === "lobby" ? room.game_state : room.game_state;
+      // ^ We are keeping game_state exactly as it is.
 
       await supabase
         .from("rooms")
@@ -111,7 +117,7 @@ export function GameScreen() {
   };
 
   // 4. Handle Browser Close / Refresh
-  useEffect(() => {
+  /*useEffect(() => {
     const handleUnload = () => {
       if (room && roomCode) {
         leaveRoom(false);
@@ -119,7 +125,7 @@ export function GameScreen() {
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [room, roomCode]);
+  }, [room, roomCode]);*/
   // --- HEARTBEAT: Tell the server we are still here ---
   // --- HEARTBEAT: Tell the server we are still here ---
   useEffect(() => {
