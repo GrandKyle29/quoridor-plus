@@ -140,97 +140,87 @@ export function GameBoard({
               gap: "10px",
               justifyContent: "center",
               marginTop: "15px",
+              flexWrap: "wrap",
             }}
           >
+            {/* LOCAL BUTTONS */}
             {!isOnline && (
               <>
                 <button
                   onClick={resetGame}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "16px",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
+                  style={
+                    {
+                      /* ... */
+                    }
+                  }
                 >
                   Play Again
                 </button>
                 {onLeave && (
                   <button
                     onClick={() => onLeave(state.config)}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "16px",
-                      backgroundColor: "#4b5563",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
+                    style={
+                      {
+                        /* ... */
+                      }
+                    }
                   >
                     Back to Setup
                   </button>
                 )}
               </>
             )}
+
+            {/* ONLINE BUTTONS */}
             {isOnline && (
               <>
                 {isHost ? (
                   <button
                     onClick={resetGame}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "16px",
-                      backgroundColor: "#3b82f6",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
+                    style={
+                      {
+                        /* ... */
+                      }
+                    }
                   >
                     Return to Lobby
                   </button>
                 ) : (
                   <button
                     onClick={() => onLeave && onLeave(state.config)}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "16px",
-                      backgroundColor: "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
+                    style={
+                      {
+                        /* ... */
+                      }
+                    }
                   >
                     Leave Game
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    const code = encodeShareCode(state);
-                    const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
-                    navigator.clipboard.writeText(url);
-                    alert("Replay link copied to clipboard!");
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "16px",
-                    backgroundColor: "#eab308",
-                    color: "#1f2937",
-                    fontWeight: "bold",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Share Replay
-                </button>
               </>
             )}
+
+            {/* SHARE REPLAY - Outside both blocks, so it appears for everyone */}
+            <button
+              onClick={() => {
+                const code = encodeShareCode(state);
+                const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
+                navigator.clipboard.writeText(url);
+                alert("Replay link copied to clipboard!");
+              }}
+              style={{
+                padding: "8px 16px",
+                fontSize: "16px",
+                backgroundColor: "#eab308",
+                color: "#1f2937",
+                fontWeight: "bold",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Share Replay
+            </button>
           </div>
         </div>
       ) : (
