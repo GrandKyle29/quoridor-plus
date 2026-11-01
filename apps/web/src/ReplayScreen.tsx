@@ -28,15 +28,25 @@ export function ReplayScreen() {
   useEffect(() => {
     if (!fullGame) return;
 
-    // Reconstruct the state at the current step, without shuffling
-    let state = createGame(
-      { ...fullGame.config, randomizeSpawns: false },
-      fullGame.players.map((p) => p.name),
-      fullGame.players.map((p) => p.color || "#ffffff"),
-    );
+    // Start from a fresh copy of the initial state
+    let state: GameState = {
+      ...fullGame,
+      players: fullGame.players.map((p) => ({
+        ...p,
+        position: { ...p.position },
+      })),
+      walls: [],
+      turnIndex: 0,
+      moveLog: [],
+      status: "active",
+      winner: null,
+    };
+
+    // Apply moves up to currentStep
     for (let i = 0; i < currentStep; i++) {
       state = applyMove(state, fullGame.moveLog[i]!);
     }
+
     setReplayState(state);
   }, [fullGame, currentStep]);
 

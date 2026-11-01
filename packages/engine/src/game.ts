@@ -28,6 +28,30 @@ export function getStartPositions(count: number, size: number): Coord[] {
 
   throw new Error("Player count must be 2, 3, or 4");
 }
+export function getStartPositionsRaw(count: number, size: number): Coord[] {
+  const mid = Math.floor(size / 2);
+  const max = size - 1;
+
+  if (count === 2)
+    return [
+      { x: mid, y: 0 },
+      { x: mid, y: max },
+    ];
+  if (count === 4)
+    return [
+      { x: mid, y: 0 },
+      { x: mid, y: max },
+      { x: 0, y: mid },
+      { x: max, y: mid },
+    ];
+  if (count === 3)
+    return [
+      { x: mid, y: 0 },
+      { x: 0, y: max },
+      { x: max, y: max },
+    ];
+  throw new Error("Player count must be 2, 3, or 4");
+}
 // Fisher-Yates shuffle for randomizing player order
 function shuffleArray<T>(array: T[]): T[] {
   const newArr = [...array];

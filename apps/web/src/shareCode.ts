@@ -1,9 +1,9 @@
-import { createGame, applyMove } from "@quoridor/engine";
-import type { GameConfig, GameState, Move } from "@quoridor/engine";
+import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
+import type { GameConfig, GameState, Move, Player } from "@quoridor/engine";
 
 export type ShareData = {
   config: GameConfig;
-  players: { name: string; color: string }[];
+  players: { name: string; color: string; startIndex: number }[];
   moveLog: Move[];
 };
 
@@ -13,12 +13,12 @@ export function encodeShareCode(state: GameState): string {
     players: state.players.map((p) => ({
       name: p.name,
       color: p.color || "#ffffff",
+      startIndex: p.startIndex ?? 0,
     })),
     moveLog: state.moveLog,
   };
 
   const json = JSON.stringify(data);
-
   return btoa(encodeURIComponent(json));
 }
 
@@ -27,20 +27,41 @@ export function decodeShareCode(code: string): GameState | null {
     const json = decodeURIComponent(atob(code));
     const data = JSON.parse(json) as ShareData;
 
-    // Force randomizeSpawns off to preserve the original player order
-    const configForReplay = { ...data.config, randomizeSpawns: false };
-
-    let currentState = createGame(
-      configForReplay,
-      data.players.map((p) => p.name),
-      data.players.map((p) => p.color),
+    // Rebuild the player list in the exact saved order, using their saved startIndex
+    const startPositions = getStartPositionsRaw(
+      data.players.length,
+      data.config.boardSize,
     );
 
+    const players: Player[] = data.players.map((p, i) => ({
+      id: `p${i}`,
+      name: p.name,
+      color: p.color,
+      position: startPositions[p.startIndex]!,
+      wallsRemaining: data.config.startingWalls,
+      connected: true,
+      eliminated: false,
+      startIndex: p.startIndex,
+    }));
+
+    // Build the initial state manually
+    let currentState: GameState = {
+      config: data.config,
+      players,
+      walls: [],
+      turnIndex: 0,
+      moveLog: [],
+      status: "active",
+      winner: null,
+    };
+
+    // Replay all the moves
     for (const move of data.moveLog) {
       currentState = applyMove(currentState, move);
     }
 
-    return currentState;
+    // Preserve the full moveLog so the slider works
+    return { ...currentState, moveLog: data.moveLog };
   } catch (e) {
     console.error("Failed to decode share code:", e);
     return null;
