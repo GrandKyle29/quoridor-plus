@@ -22,7 +22,7 @@ export function GameScreen() {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
     //const configOverrides = location.state?.configOverrides || {};
-    const myName = playerNames[0]; // The human is always the first name passed from setup
+    //const myName = playerNames[0]; // The human is always the first name passed from setup
     if (!playerNames) {
       navigate("/");
       return null;
