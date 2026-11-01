@@ -28,7 +28,7 @@ export function ReplayScreen() {
   useEffect(() => {
     if (!fullGame) return;
 
-    // Reconstruct the state at the current step
+    // Reconstruct the state at the current step, without shuffling
     let state = createGame(
       { ...fullGame.config, randomizeSpawns: false },
       fullGame.players.map((p) => p.name),

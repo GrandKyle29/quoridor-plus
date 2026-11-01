@@ -3,26 +3,11 @@ import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
 export type ShareData = {
   config: GameConfig;
-  playerNames: string[];
-  playerColors?: string[];
-  moveLog: Move[];
-};
-
-export type ShareData = {
-  config: GameConfig;
-  players: { name: string; color: string }[]; // Original order, unshuffled
-  moveLog: Move[];
-};
-
-export type ShareData = {
-  config: GameConfig;
-  players: { name: string; color: string }[]; // Original order, unshuffled
+  players: { name: string; color: string }[];
   moveLog: Move[];
 };
 
 export function encodeShareCode(state: GameState): string {
-  // Use the FIRST move's resulting state to get the original order
-  // (or just state.players if the game hasn't started)
   const data: ShareData = {
     config: state.config,
     players: state.players.map((p) => ({
@@ -31,7 +16,9 @@ export function encodeShareCode(state: GameState): string {
     })),
     moveLog: state.moveLog,
   };
+
   const json = JSON.stringify(data);
+
   return btoa(encodeURIComponent(json));
 }
 
@@ -40,8 +27,9 @@ export function decodeShareCode(code: string): GameState | null {
     const json = decodeURIComponent(atob(code));
     const data = JSON.parse(json) as ShareData;
 
-    // Reconstruct with randomizeSpawns OFF and playerColors mapped
+    // Force randomizeSpawns off to preserve the original player order
     const configForReplay = { ...data.config, randomizeSpawns: false };
+
     let currentState = createGame(
       configForReplay,
       data.players.map((p) => p.name),
