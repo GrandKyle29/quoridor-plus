@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
 import { GameBoard } from "./GameBoard";
@@ -6,6 +6,7 @@ import { WaitingRoom } from "./WaitingRoom";
 import { getMyPlayerId } from "./utils";
 import { applyMove } from "@quoridor/engine";
 import type { Move } from "@quoridor/engine";
+import { DebugOverlay } from "./DebugOverlay";
 
 export function GameScreen() {
   const { roomCode } = useParams();
@@ -15,6 +16,10 @@ export function GameScreen() {
 
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [lastSentBytes, setLastSentBytes] = useState(0);
+  const [lastReceivedBytes, setLastReceivedBytes] = useState(0);
+  const lastHeartbeatTime = useRef<number>(Date.now());
+  const [heartbeatAge, setHeartbeatAge] = useState<number | null>(null);
 
   // 1. Handle Local Game (No Room Code)
   if (!roomCode) {
@@ -71,7 +76,12 @@ export function GameScreen() {
           table: "rooms",
           filter: `id=eq.${roomCode}`,
         },
-        (payload) => setRoom(payload.new),
+        (payload) => {
+          const bytes = JSON.stringify(payload.new).length;
+          setLastReceivedBytes(bytes);
+          console.log("📥 Received", bytes, "bytes");
+          setRoom(payload.new);
+        },
       )
       .subscribe();
 
@@ -113,7 +123,7 @@ export function GameScreen() {
         .select("players")
         .eq("id", roomCode)
         .single();
-      if (!data) return;
+      if (!data || !data.players || !Array.isArray(data.players)) return;
 
       const updatedPlayers = data.players.map((p: any) =>
         p.id === myId ? { ...p, last_ping: Date.now() } : p,
@@ -123,22 +133,32 @@ export function GameScreen() {
         .from("rooms")
         .update({ players: updatedPlayers })
         .eq("id", roomCode);
+
+      lastHeartbeatTime.current = Date.now();
     }, 5000);
 
     return () => clearInterval(interval);
   }, [roomCode, myId]);
 
-  // 5. Play Move (Online)
+  // 5. Heartbeat age ticker
+  useEffect(() => {
+    if (!roomCode) return;
+    const interval = setInterval(() => {
+      setHeartbeatAge(Date.now() - lastHeartbeatTime.current);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [roomCode]);
+
+  // 6. Play Move (Online)
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-
-      // Strip the moveLog before broadcasting. It grows unboundedly and
-      // eventually exceeds Supabase's realtime payload size limit, which
-      // causes the game_state field to be dropped from the broadcast —
-      // leaving clients with `game_state: undefined` and a gray screen.
       const broadcastState = { ...nextState, moveLog: [] };
+
+      const bytes = JSON.stringify(broadcastState).length;
+      setLastSentBytes(bytes);
+      console.log("📤 Sent", bytes, "bytes");
 
       setRoom({ ...room, game_state: broadcastState });
       await supabase
@@ -259,30 +279,39 @@ export function GameScreen() {
     const localPlayerId = myEnginePlayer ? myEnginePlayer.id : undefined;
 
     return (
-      <div>
-        <div
-          style={{
-            position: "absolute",
-            top: "16px",
-            left: "16px",
-            color: "white",
-          }}
-        >
-          Room: <strong>{roomCode}</strong>
+      <>
+        <div>
+          <div
+            style={{
+              position: "absolute",
+              top: "16px",
+              left: "16px",
+              color: "white",
+            }}
+          >
+            Room: <strong>{roomCode}</strong>
+          </div>
+          <GameBoard
+            playerNames={room.game_state.players.map((p: any) => p.name)}
+            vsBot={false}
+            onlineState={room.game_state}
+            onlinePlayMove={playMove}
+            onlineResetGame={resetOnlineGame}
+            localPlayerId={localPlayerId}
+            onLeave={() => leaveRoom(true)}
+            isOnline={true}
+            onlinePlayers={room.players}
+            isHost={isHost}
+          />
         </div>
-        <GameBoard
-          playerNames={room.game_state.players.map((p: any) => p.name)}
-          vsBot={false}
-          onlineState={room.game_state}
-          onlinePlayMove={playMove}
-          onlineResetGame={resetOnlineGame}
-          localPlayerId={localPlayerId}
-          onLeave={() => leaveRoom(true)}
-          isOnline={true}
-          onlinePlayers={room.players}
-          isHost={isHost}
+        <DebugOverlay
+          roomCode={roomCode}
+          moveLogLength={room?.game_state?.moveLog?.length ?? 0}
+          lastSentBytes={lastSentBytes}
+          lastReceivedBytes={lastReceivedBytes}
+          heartbeatAge={heartbeatAge}
         />
-      </div>
+      </>
     );
   }
 
