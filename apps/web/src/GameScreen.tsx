@@ -32,17 +32,17 @@ export function GameScreen() {
       <GameBoard
         playerNames={playerNames}
         vsBot={vsBot}
-        myLocalName={myName}
+        myLocalName={playerNames[0]}
+        botTimeLimit={location.state?.botTimeLimit || 1500}
         localPlayerId={vsBot ? "p0" : undefined}
-        botTimeLimit={location.state?.botTimeLimit}
-        //botMode={location.state?.botMode || "heuristic"}
         useWood={location.state?.useWood}
-        // UPDATE THIS LINE:
+        // NEW: Pass the colors
+        playerColors={location.state?.playerColors}
+        configOverrides={location.state?.configOverrides || {}}
         onLeave={(config) =>
           navigate("/local", { state: { prevConfig: config } })
         }
         isOnline={false}
-        configOverrides={location.state?.configOverrides || {}} // <-- ADD THIS
       />
     );
   }

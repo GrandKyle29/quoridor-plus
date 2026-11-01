@@ -23,6 +23,7 @@ export function useGame(
   configOverrides: Partial<GameConfig> = {},
   botTimeLimit: number = 1500,
   //botMode: "heuristic" | "minimax" = "heuristic",
+  playerColors?: string[], // <-- ADD
 ) {
   // Memoize the final config so it doesn't recreate on every render
   const finalConfig = useMemo(() => {
@@ -34,7 +35,7 @@ export function useGame(
   }, [JSON.stringify(configOverrides), playerNames.length]);
 
   const [state, setState] = useState<GameState>(() =>
-    createGame(finalConfig, playerNames),
+    createGame(finalConfig, playerNames, playerColors),
   );
 
   const playMove = (move: Move) => {
@@ -48,7 +49,7 @@ export function useGame(
 
   const resetGame = () => {
     // Use finalConfig instead of classicConfig!
-    setState(createGame(finalConfig, playerNames));
+    setState(createGame(finalConfig, playerNames, playerColors));
   };
 
   useEffect(() => {

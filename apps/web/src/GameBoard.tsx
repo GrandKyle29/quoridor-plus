@@ -20,6 +20,7 @@ interface GameBoardProps {
   onlinePlayers?: any[];
   myLocalName?: string; // NEW: For local bot games
   isHost?: boolean; // <-- NEW
+  playerColors?: string[];
 }
 
 export function GameBoard({
@@ -36,9 +37,16 @@ export function GameBoard({
   botTimeLimit = 1500,
   onlinePlayers,
   myLocalName,
+  playerColors,
   isHost = false,
 }: GameBoardProps) {
-  const localGame = useGame(playerNames, vsBot, configOverrides, botTimeLimit);
+  const localGame = useGame(
+    playerNames,
+    vsBot,
+    configOverrides,
+    botTimeLimit,
+    playerColors,
+  );
 
   const state = onlineState || localGame.state;
   const playMove = onlinePlayMove || localGame.playMove;

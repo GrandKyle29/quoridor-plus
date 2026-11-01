@@ -27,19 +27,22 @@ export function LocalSetup() {
       playerNames.push(`Bot ${i + 1}`);
     }
 
+    // NEW: Define the default colors for local games
+    const defaultColors = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
+
     navigate("/game", {
       state: {
         playerNames,
         vsBot: true,
         useWood,
         botTimeLimit,
-        //botMode,
+        // NEW: Pass the colors to the engine
+        playerColors: defaultColors.slice(0, playerNames.length),
         configOverrides: {
           boardSize,
           goalCondition,
           startingWalls,
           maxPlayers: botCount + 1,
-          randomizeSpawns, // <-- Add this
         },
       },
     });
