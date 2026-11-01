@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
+import type { GameState } from "@quoridor/engine";
 import { GameBoard } from "./GameBoard";
 import { decodeShareCode } from "./shareCode";
-import type { GameState } from "@quoridor/engine";
-import { applyMove } from "@quoridor/engine";
 
 export function ReplayScreen() {
   const navigate = useNavigate();
@@ -19,15 +19,12 @@ export function ReplayScreen() {
       const game = decodeShareCode(shareCode);
       if (game) {
         setFullGame(game);
-        setCurrentStep(game.moveLog.length); // Go to end by default
+        setCurrentStep(game.moveLog.length);
       }
     }
   }, [shareCode]);
 
-  import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
-
-  // ... inside ReplayScreen component ...
-
+  // Update the replay state when the step changes
   useEffect(() => {
     if (!fullGame) return;
 
@@ -96,7 +93,6 @@ export function ReplayScreen() {
   return (
     <div style={{ textAlign: "center", color: "white" }}>
       <h2>Replay</h2>
-
       <div style={{ marginBottom: "20px" }}>
         <p>
           Move {currentStep} of {fullGame.moveLog.length}
@@ -116,7 +112,7 @@ export function ReplayScreen() {
           playerNames={replayState.players.map((p) => p.name)}
           vsBot={false}
           onlineState={replayState}
-          onlinePlayMove={() => {}} // No moves allowed in replay
+          onlinePlayMove={() => {}}
           isOnline={true}
           localPlayerId={undefined}
         />
