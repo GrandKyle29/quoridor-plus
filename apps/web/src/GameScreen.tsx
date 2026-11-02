@@ -191,8 +191,19 @@ export function GameScreen() {
 
   const handleShareReplay = () => {
     if (!room?.game_state) return;
+
     console.group("🎥 Sharing replay");
     console.log("Move count:", localMoveLog.length);
+    console.log("Full move log:", JSON.stringify(localMoveLog, null, 2));
+    console.log("Current state:", {
+      players: room.game_state.players.map((p: any) => ({
+        id: p.id,
+        position: p.position,
+        name: p.name,
+      })),
+      walls: room.game_state.walls.length,
+      turnIndex: room.game_state.turnIndex,
+    });
     console.groupEnd();
     const stateWithLog = { ...room.game_state, moveLog: localMoveLog };
     const code = encodeShareCode(stateWithLog);
