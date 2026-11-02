@@ -21,6 +21,7 @@ interface GameBoardProps {
   myLocalName?: string;
   isHost?: boolean;
   playerColors?: string[];
+  onShareReplay?: () => void;
 }
 
 export function GameBoard({
@@ -39,6 +40,7 @@ export function GameBoard({
   myLocalName,
   isHost = false,
   playerColors,
+  onShareReplay,
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -344,14 +346,17 @@ export function GameBoard({
               </>
             )}
 
-            {/* SHARE REPLAY — local games only (online replay uses moveLog, which we strip from broadcasts) */}
-            {!isOnline && (
+            {(!isOnline || (isOnline && localPlayerId)) && (
               <button
                 onClick={() => {
-                  const code = encodeShareCode(state);
-                  const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
-                  navigator.clipboard.writeText(url);
-                  alert("Replay link copied to clipboard!");
+                  if (isOnline && onShareReplay) {
+                    onShareReplay();
+                  } else {
+                    const code = encodeShareCode(state);
+                    const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
+                    navigator.clipboard.writeText(url);
+                    alert("Replay link copied to clipboard!");
+                  }
                 }}
                 style={{
                   padding: "8px 16px",

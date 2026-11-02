@@ -6,6 +6,7 @@ import { WaitingRoom } from "./WaitingRoom";
 import { getMyPlayerId } from "./utils";
 import { applyMove } from "@quoridor/engine";
 import type { Move } from "@quoridor/engine";
+import { encodeShareCode } from "./shareCode";
 import { DebugOverlay } from "./DebugOverlay";
 
 export function GameScreen() {
@@ -16,6 +17,7 @@ export function GameScreen() {
 
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [localMoveLog, setLocalMoveLog] = useState<Move[]>([]);
   const [lastSentBytes, setLastSentBytes] = useState(0);
   const [lastReceivedBytes, setLastReceivedBytes] = useState(0);
   const lastHeartbeatTime = useRef<number>(Date.now());
@@ -48,7 +50,7 @@ export function GameScreen() {
     );
   }
 
-  // 2. Online Game Setup
+  // 2. Online Game Setup — fetch + subscribe
   useEffect(() => {
     if (!roomCode) return;
 
@@ -80,6 +82,19 @@ export function GameScreen() {
           const bytes = JSON.stringify(payload.new).length;
           setLastReceivedBytes(bytes);
           console.log("📥 Received", bytes, "bytes");
+
+          const receivedState = payload.new?.game_state;
+          if (receivedState?.lastMove) {
+            // Append the received move to our local accumulated log
+            setLocalMoveLog((log) => [...log, receivedState.lastMove]);
+
+            // Strip lastMove from the state so it doesn't linger
+            payload.new.game_state = {
+              ...receivedState,
+              lastMove: undefined,
+            };
+          }
+
           setRoom(payload.new);
         },
       )
@@ -154,10 +169,17 @@ export function GameScreen() {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-      const broadcastState = { ...nextState, moveLog: [] };
+
+      // Broadcast includes the state (no moveLog) + the single lastMove
+      const broadcastState = {
+        ...nextState,
+        moveLog: [],
+        lastMove: move,
+      };
 
       const bytes = JSON.stringify(broadcastState).length;
       setLastSentBytes(bytes);
+      setLocalMoveLog((log) => [...log, move]); // Track locally
       console.log("📤 Sent", bytes, "bytes");
 
       setRoom({ ...room, game_state: broadcastState });
@@ -176,6 +198,21 @@ export function GameScreen() {
       .from("rooms")
       .update({ status: "lobby", game_state: null })
       .eq("id", roomCode);
+    // Clear the local move log when resetting
+    setLocalMoveLog([]);
+  };
+
+  // 7. Share Replay — combines current state with the locally accumulated move log
+  const handleShareReplay = () => {
+    if (!room?.game_state) return;
+    const stateWithLog = {
+      ...room.game_state,
+      moveLog: localMoveLog,
+    };
+    const code = encodeShareCode(stateWithLog);
+    const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(url);
+    alert("Replay link copied to clipboard!");
   };
 
   if (loading)
@@ -243,36 +280,16 @@ export function GameScreen() {
 
     if (!gsHasPlayers) {
       console.error("🚨 MALFORMED GAME_STATE");
-      console.error("  room.status:", room.status);
-      console.error("  room.game_state type:", typeof gs);
-      console.error("  room.game_state value:", gs);
-      console.error("  gsIsObject:", gsIsObject);
-      if (gsIsObject) {
-        console.error("  gs.players type:", typeof gs.players);
-        console.error("  gs.players isArray:", Array.isArray(gs.players));
-        console.error("  gs.players length:", gs.players?.length);
-        console.error("  gs.players value:", gs.players);
-      }
       return (
         <div
           style={{ color: "white", textAlign: "center", marginTop: "100px" }}
         >
           <p>Game state not ready. Check console for details.</p>
-          <p style={{ color: "#ccc", fontSize: "12px" }}>
-            {typeof gs === "string"
-              ? `game_state is a string of length ${gs.length}`
-              : gs === null
-                ? "game_state is null"
-                : gs === undefined
-                  ? "game_state is undefined"
-                  : gsIsObject
-                    ? "game_state is an object but players is missing/empty"
-                    : `game_state is ${typeof gs}`}
-          </p>
           <button onClick={() => window.location.reload()}>Reload</button>
         </div>
       );
     }
+
     const myEnginePlayer = room.game_state.players.find(
       (p: any) => p.name === me?.name,
     );
@@ -302,11 +319,12 @@ export function GameScreen() {
             isOnline={true}
             onlinePlayers={room.players}
             isHost={isHost}
+            onShareReplay={handleShareReplay}
           />
         </div>
         <DebugOverlay
           roomCode={roomCode}
-          moveLogLength={room?.game_state?.moveLog?.length ?? 0}
+          moveLogLength={localMoveLog.length}
           lastSentBytes={lastSentBytes}
           lastReceivedBytes={lastReceivedBytes}
           heartbeatAge={heartbeatAge}
