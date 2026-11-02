@@ -4,9 +4,9 @@ import {
   getStartPositionsRaw,
   encodeMoves,
   decodeMoves,
+  legalMoves,
 } from "@quoridor/engine";
 import type { GameConfig, GameState, Move, Player } from "@quoridor/engine";
-import { applyMove, getStartPositionsRaw, legalMoves } from "@quoridor/engine";
 
 export type ShareData = {
   config: GameConfig;
