@@ -21,7 +21,9 @@ interface GameBoardProps {
   myLocalName?: string;
   isHost?: boolean;
   playerColors?: string[];
+  //onShareReplay?: () => void;
   onShareReplay?: () => void;
+  isSharingReplay?: boolean;
 }
 
 export function GameBoard({
@@ -41,6 +43,7 @@ export function GameBoard({
   isHost = false,
   playerColors,
   onShareReplay,
+  isSharingReplay = false,
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -80,24 +83,34 @@ export function GameBoard({
     audio.play().catch((e) => console.log("Audio play failed:", e));
   };
 
-  const prevMoveCount = useRef(state?.moveLog.length || 0);
+  const prevMoveCount = useRef(0);
   const prevStatus = useRef(state?.status);
 
   useEffect(() => {
     if (!state) return;
 
-    if (state.moveLog.length < prevMoveCount.current) {
-      prevMoveCount.current = state.moveLog.length;
+    // moveCount is authoritative for online games; moveLog.length for local
+    const currentCount =
+      (state as any).moveCount !== undefined
+        ? (state as any).moveCount
+        : state.moveLog.length;
+
+    // Game reset
+    if (currentCount < prevMoveCount.current) {
+      prevMoveCount.current = currentCount;
       return;
     }
 
-    if (state.moveLog.length > prevMoveCount.current) {
-      const lastMove = state.moveLog[state.moveLog.length - 1];
-      if (lastMove.kind === "move") playSound("move");
-      if (lastMove.kind === "wall") playSound("wall");
-      prevMoveCount.current = state.moveLog.length;
+    // New move
+    if (currentCount > prevMoveCount.current) {
+      const lastMove =
+        (state as any).lastMove ?? state.moveLog[state.moveLog.length - 1];
+      if (lastMove?.kind === "move") playSound("move");
+      if (lastMove?.kind === "wall") playSound("wall");
+      prevMoveCount.current = currentCount;
     }
 
+    // Win
     if (state.status === "finished" && prevStatus.current !== "finished") {
       playSound("win");
     }
@@ -358,18 +371,19 @@ export function GameBoard({
                     alert("Replay link copied to clipboard!");
                   }
                 }}
+                disabled={isSharingReplay}
                 style={{
                   padding: "8px 16px",
                   fontSize: "16px",
-                  backgroundColor: "#eab308",
+                  backgroundColor: isSharingReplay ? "#888" : "#eab308",
                   color: "#1f2937",
                   fontWeight: "bold",
                   border: "none",
                   borderRadius: "4px",
-                  cursor: "pointer",
+                  cursor: isSharingReplay ? "not-allowed" : "pointer",
                 }}
               >
-                Share Replay
+                {isSharingReplay ? "Loading..." : "Share Replay"}
               </button>
             )}
           </div>

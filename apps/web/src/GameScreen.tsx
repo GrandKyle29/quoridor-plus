@@ -17,12 +17,13 @@ export function GameScreen() {
 
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [localMoveLog, setLocalMoveLog] = useState<Move[]>([]);
   const [lastSentBytes, setLastSentBytes] = useState(0);
   const [lastReceivedBytes, setLastReceivedBytes] = useState(0);
   const lastHeartbeatTime = useRef<number>(Date.now());
   const [heartbeatAge, setHeartbeatAge] = useState<number | null>(null);
+  const [isSharingReplay, setIsSharingReplay] = useState(false);
 
+  // 1. Handle Local Game (No Room Code)
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
@@ -48,6 +49,7 @@ export function GameScreen() {
     );
   }
 
+  // 2. Online Game Setup — fetch + subscribe (no accumulation)
   useEffect(() => {
     if (!roomCode) return;
 
@@ -78,27 +80,6 @@ export function GameScreen() {
         (payload) => {
           const bytes = JSON.stringify(payload.new).length;
           setLastReceivedBytes(bytes);
-          console.log("📥 Received", bytes, "bytes");
-
-          const receivedState = payload.new?.game_state;
-          if (receivedState?.lastMove && receivedState?.moveCount != null) {
-            setLocalMoveLog((log) => {
-              if (receivedState.moveCount <= log.length) {
-                console.log(
-                  `⏭️ Skipping duplicate (have ${log.length}, got ${receivedState.moveCount})`,
-                );
-                return log;
-              }
-              if (receivedState.moveCount > log.length + 1) {
-                console.warn(
-                  `⚠️ Gap! Have ${log.length}, got ${receivedState.moveCount}`,
-                );
-              }
-              return [...log, receivedState.lastMove];
-            });
-            payload.new.game_state = { ...receivedState, lastMove: undefined };
-          }
-
           setRoom(payload.new);
         },
       )
@@ -109,6 +90,7 @@ export function GameScreen() {
     };
   }, [roomCode]);
 
+  // 3. Leave Room
   const leaveRoom = async (isExplicitLeave = true) => {
     if (!room || !roomCode) return;
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
@@ -124,6 +106,7 @@ export function GameScreen() {
     if (isExplicitLeave) navigate("/");
   };
 
+  // 4. Heartbeat
   useEffect(() => {
     if (!roomCode) return;
     const interval = setInterval(async () => {
@@ -153,24 +136,33 @@ export function GameScreen() {
     return () => clearInterval(interval);
   }, [roomCode]);
 
+  // 5. Play Move — insert to moves table + broadcast slim state
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
+      const currentMoveCount = (room.game_state as any).moveCount || 0;
+      const newMoveCount = currentMoveCount + 1;
 
       const broadcastState = {
         ...nextState,
-        moveLog: [],
-        lastMove: move,
-        moveCount: localMoveLog.length + 1,
+        moveLog: [], // never broadcast the log
+        lastMove: move, // for sounds/animation
+        moveCount: newMoveCount,
       };
 
       const bytes = JSON.stringify(broadcastState).length;
       setLastSentBytes(bytes);
-      setLocalMoveLog((log) => [...log, move]);
-      console.log("📤 Sent", bytes, "bytes");
-
       setRoom({ ...room, game_state: broadcastState });
+
+      // Insert to moves table (source of truth for replays)
+      await supabase.from("moves").insert({
+        room_id: roomCode,
+        move_number: newMoveCount,
+        move_data: move,
+      });
+
+      // Update room state (broadcast goes to other clients)
       await supabase
         .from("rooms")
         .update({ game_state: broadcastState })
@@ -186,30 +178,41 @@ export function GameScreen() {
       .from("rooms")
       .update({ status: "lobby", game_state: null })
       .eq("id", roomCode);
-    setLocalMoveLog([]);
+    // Delete moves from the finished game
+    await supabase.from("moves").delete().eq("room_id", roomCode);
   };
 
-  const handleShareReplay = () => {
+  // 6. Share Replay — query moves table
+  const handleShareReplay = async () => {
     if (!room?.game_state) return;
+    setIsSharingReplay(true);
 
-    console.group("🎥 Sharing replay");
-    console.log("Move count:", localMoveLog.length);
-    console.log("Full move log:", JSON.stringify(localMoveLog, null, 2));
-    console.log("Current state:", {
-      players: room.game_state.players.map((p: any) => ({
-        id: p.id,
-        position: p.position,
-        name: p.name,
-      })),
-      walls: room.game_state.walls.length,
-      turnIndex: room.game_state.turnIndex,
-    });
-    console.groupEnd();
-    const stateWithLog = { ...room.game_state, moveLog: localMoveLog };
+    const { data: moves, error } = await supabase
+      .from("moves")
+      .select("move_data")
+      .eq("room_id", roomCode)
+      .order("move_number", { ascending: true });
+
+    setIsSharingReplay(false);
+
+    if (error || !moves) {
+      console.error("Failed to load moves:", error);
+      alert("Failed to load moves for replay");
+      return;
+    }
+
+    const fullMoveLog = moves.map((m: any) => m.move_data);
+    console.log(`📤 Sharing replay with ${fullMoveLog.length} moves`);
+
+    const stateWithLog = {
+      ...room.game_state,
+      moveLog: fullMoveLog,
+    };
+
     const code = encodeShareCode(stateWithLog);
     const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(url);
-    alert("Replay link copied to clipboard!");
+    alert(`Replay link copied! (${fullMoveLog.length} moves)`);
   };
 
   if (loading)
@@ -265,10 +268,9 @@ export function GameScreen() {
 
   if (room.status === "playing") {
     const gs = room.game_state;
-    const gsIsObject = gs && typeof gs === "object";
     const gsHasPlayers =
-      gsIsObject &&
-      gs.players &&
+      gs &&
+      typeof gs === "object" &&
       Array.isArray(gs.players) &&
       gs.players.length > 0;
 
@@ -314,11 +316,12 @@ export function GameScreen() {
             onlinePlayers={room.players}
             isHost={isHost}
             onShareReplay={handleShareReplay}
+            isSharingReplay={isSharingReplay}
           />
         </div>
         <DebugOverlay
           roomCode={roomCode}
-          moveLogLength={localMoveLog.length}
+          moveLogLength={(room.game_state as any).moveCount || 0}
           lastSentBytes={lastSentBytes}
           lastReceivedBytes={lastReceivedBytes}
           heartbeatAge={heartbeatAge}
