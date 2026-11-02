@@ -6,6 +6,7 @@ import {
   decodeMoves,
 } from "@quoridor/engine";
 import type { GameConfig, GameState, Move, Player } from "@quoridor/engine";
+import { applyMove, getStartPositionsRaw, legalMoves } from "@quoridor/engine";
 
 export type ShareData = {
   config: GameConfig;
@@ -76,9 +77,33 @@ export function decodeShareCode(code: string): GameState | null {
       status: "active",
       winner: null,
     };
-
-    for (const move of moveLog) {
-      currentState = applyMove(currentState, move);
+    for (let i = 0; i < moveLog.length; i++) {
+      const move = moveLog[i]!;
+      try {
+        currentState = applyMove(currentState, move);
+      } catch (e) {
+        console.error(`🚨 Failed at move ${i}/${moveLog.length}`);
+        console.error("  Move:", JSON.stringify(move));
+        console.error("  State before move:", {
+          players: currentState.players.map((p) => ({
+            id: p.id,
+            position: p.position,
+            wallsRemaining: p.wallsRemaining,
+          })),
+          wallsCount: currentState.walls.length,
+          turnIndex: currentState.turnIndex,
+        });
+        const legal = legalMoves(currentState);
+        console.error(
+          "  Legal moves:",
+          legal.map((m) =>
+            m.kind === "move"
+              ? `move(${m.to.x},${m.to.y})`
+              : `wall(${m.wall.coord.x},${m.wall.coord.y},${m.wall.orientation})`,
+          ),
+        );
+        throw e;
+      }
     }
 
     return { ...currentState, moveLog };
