@@ -23,7 +23,6 @@ export function GameScreen() {
   const lastHeartbeatTime = useRef<number>(Date.now());
   const [heartbeatAge, setHeartbeatAge] = useState<number | null>(null);
 
-  // 1. Handle Local Game (No Room Code)
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
@@ -31,7 +30,6 @@ export function GameScreen() {
       navigate("/");
       return null;
     }
-
     return (
       <GameBoard
         playerNames={playerNames}
@@ -50,7 +48,6 @@ export function GameScreen() {
     );
   }
 
-  // 2. Online Game Setup — fetch + subscribe
   useEffect(() => {
     if (!roomCode) return;
 
@@ -84,15 +81,22 @@ export function GameScreen() {
           console.log("📥 Received", bytes, "bytes");
 
           const receivedState = payload.new?.game_state;
-          if (receivedState?.lastMove) {
-            // Append the received move to our local accumulated log
-            setLocalMoveLog((log) => [...log, receivedState.lastMove]);
-
-            // Strip lastMove from the state so it doesn't linger
-            payload.new.game_state = {
-              ...receivedState,
-              lastMove: undefined,
-            };
+          if (receivedState?.lastMove && receivedState?.moveCount != null) {
+            setLocalMoveLog((log) => {
+              if (receivedState.moveCount <= log.length) {
+                console.log(
+                  `⏭️ Skipping duplicate (have ${log.length}, got ${receivedState.moveCount})`,
+                );
+                return log;
+              }
+              if (receivedState.moveCount > log.length + 1) {
+                console.warn(
+                  `⚠️ Gap! Have ${log.length}, got ${receivedState.moveCount}`,
+                );
+              }
+              return [...log, receivedState.lastMove];
+            });
+            payload.new.game_state = { ...receivedState, lastMove: undefined };
           }
 
           setRoom(payload.new);
@@ -105,33 +109,23 @@ export function GameScreen() {
     };
   }, [roomCode]);
 
-  // 3. The Leave Room Logic
   const leaveRoom = async (isExplicitLeave = true) => {
     if (!room || !roomCode) return;
-
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
-
     if (newPlayers.length === 0) {
       await supabase.from("rooms").delete().eq("id", roomCode);
     } else {
       const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
-
       await supabase
         .from("rooms")
-        .update({
-          players: newPlayers,
-          host_id: newHostId,
-        })
+        .update({ players: newPlayers, host_id: newHostId })
         .eq("id", roomCode);
     }
-
     if (isExplicitLeave) navigate("/");
   };
 
-  // 4. Heartbeat
   useEffect(() => {
     if (!roomCode) return;
-
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("rooms")
@@ -139,23 +133,18 @@ export function GameScreen() {
         .eq("id", roomCode)
         .single();
       if (!data || !data.players || !Array.isArray(data.players)) return;
-
       const updatedPlayers = data.players.map((p: any) =>
         p.id === myId ? { ...p, last_ping: Date.now() } : p,
       );
-
       await supabase
         .from("rooms")
         .update({ players: updatedPlayers })
         .eq("id", roomCode);
-
       lastHeartbeatTime.current = Date.now();
     }, 5000);
-
     return () => clearInterval(interval);
   }, [roomCode, myId]);
 
-  // 5. Heartbeat age ticker
   useEffect(() => {
     if (!roomCode) return;
     const interval = setInterval(() => {
@@ -164,22 +153,21 @@ export function GameScreen() {
     return () => clearInterval(interval);
   }, [roomCode]);
 
-  // 6. Play Move (Online)
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
 
-      // Broadcast includes the state (no moveLog) + the single lastMove
       const broadcastState = {
         ...nextState,
         moveLog: [],
         lastMove: move,
+        moveCount: localMoveLog.length + 1,
       };
 
       const bytes = JSON.stringify(broadcastState).length;
       setLastSentBytes(bytes);
-      setLocalMoveLog((log) => [...log, move]); // Track locally
+      setLocalMoveLog((log) => [...log, move]);
       console.log("📤 Sent", bytes, "bytes");
 
       setRoom({ ...room, game_state: broadcastState });
@@ -198,17 +186,15 @@ export function GameScreen() {
       .from("rooms")
       .update({ status: "lobby", game_state: null })
       .eq("id", roomCode);
-    // Clear the local move log when resetting
     setLocalMoveLog([]);
   };
 
-  // 7. Share Replay — combines current state with the locally accumulated move log
   const handleShareReplay = () => {
     if (!room?.game_state) return;
-    const stateWithLog = {
-      ...room.game_state,
-      moveLog: localMoveLog,
-    };
+    console.group("🎥 Sharing replay");
+    console.log("Move count:", localMoveLog.length);
+    console.groupEnd();
+    const stateWithLog = { ...room.game_state, moveLog: localMoveLog };
     const code = encodeShareCode(stateWithLog);
     const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(url);
@@ -231,7 +217,6 @@ export function GameScreen() {
   const me = room.players.find((p: any) => p.id === myId);
   const isHost = room.host_id === myId;
 
-  // If we are not in the player list, we are a spectator (or we left)
   if (!me && room.status === "playing") {
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
@@ -246,7 +231,6 @@ export function GameScreen() {
     );
   }
 
-  // --- Render Waiting Room ---
   if (room.status === "lobby") {
     if (!me) {
       return (
@@ -268,7 +252,6 @@ export function GameScreen() {
     );
   }
 
-  // --- Render Game Board ---
   if (room.status === "playing") {
     const gs = room.game_state;
     const gsIsObject = gs && typeof gs === "object";
