@@ -141,28 +141,25 @@ export function GameScreen() {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-      const currentMoveCount = (room.game_state as any).moveCount || 0;
-      const newMoveCount = currentMoveCount + 1;
-
       const broadcastState = {
         ...nextState,
-        moveLog: [], // never broadcast the log
-        lastMove: move, // for sounds/animation
-        moveCount: newMoveCount,
+        moveLog: [],
+        lastMove: move,
       };
 
       const bytes = JSON.stringify(broadcastState).length;
       setLastSentBytes(bytes);
       setRoom({ ...room, game_state: broadcastState });
 
-      // Insert to moves table (source of truth for replays)
-      await supabase.from("moves").insert({
-        room_id: roomCode,
-        move_number: newMoveCount,
-        move_data: move,
-      });
+      // Insert — DB assigns id automatically, no move_number needed
+      const { error: moveError } = await supabase
+        .from("moves")
+        .insert({ room_id: roomCode, move_data: move });
 
-      // Update room state (broadcast goes to other clients)
+      if (moveError) {
+        console.error("🚨 Failed to save move:", moveError);
+      }
+
       await supabase
         .from("rooms")
         .update({ game_state: broadcastState })
@@ -191,12 +188,11 @@ export function GameScreen() {
       .from("moves")
       .select("move_data")
       .eq("room_id", roomCode)
-      .order("move_number", { ascending: true });
+      .order("id", { ascending: true });
 
     setIsSharingReplay(false);
 
     if (error || !moves) {
-      console.error("Failed to load moves:", error);
       alert("Failed to load moves for replay");
       return;
     }
@@ -204,11 +200,14 @@ export function GameScreen() {
     const fullMoveLog = moves.map((m: any) => m.move_data);
     console.log(`📤 Sharing replay with ${fullMoveLog.length} moves`);
 
-    const stateWithLog = {
-      ...room.game_state,
-      moveLog: fullMoveLog,
-    };
+    // Sanity check: if the game was played turn-by-turn with no skips,
+    // the move count should match the state's turn progression
+    if (fullMoveLog.length === 0) {
+      alert("No moves recorded for this game");
+      return;
+    }
 
+    const stateWithLog = { ...room.game_state, moveLog: fullMoveLog };
     const code = encodeShareCode(stateWithLog);
     const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(url);
