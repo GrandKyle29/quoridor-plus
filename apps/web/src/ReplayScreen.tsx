@@ -13,7 +13,7 @@ export function ReplayScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [replayState, setReplayState] = useState<GameState | null>(null);
 
-  // Load game when code changes
+  // Load game from share code
   useEffect(() => {
     if (shareCode) {
       const game = decodeShareCode(shareCode);
@@ -24,41 +24,58 @@ export function ReplayScreen() {
     }
   }, [shareCode]);
 
-  // Update the replay state when the step changes
+  // ---- SLOW: rebuild from scratch on every step ----
+  // useEffect(() => {
+  //   if (!fullGame) return;
+  //   let state = buildInitialState(fullGame);
+  //   for (let i = 0; i < currentStep; i++) {
+  //     state = applyMove(state, fullGame.moveLog[i]!);
+  //   }
+  //   setReplayState(state);
+  // }, [fullGame, currentStep]);
+
+  // ---- FAST: incremental delta application ----
+  // Keep track of what step our current `replayState` corresponds to.
+  const [replayStep, setReplayStep] = useState(0);
+
   useEffect(() => {
     if (!fullGame) return;
 
-    const startPositions = getStartPositionsRaw(
-      fullGame.players.length,
-      fullGame.config.boardSize,
-    );
-    const startingWalls =
-      typeof fullGame.config.startingWalls === "number"
-        ? fullGame.config.startingWalls
-        : Math.max(3, 10 - fullGame.players.length);
-
-    // Reset players to their initial state
-    const initialPlayers = fullGame.players.map((p, i) => ({
-      ...p,
-      position: startPositions[p.startIndex ?? i]!,
-      wallsRemaining: startingWalls,
-    }));
-
-    let state: GameState = {
-      config: fullGame.config,
-      players: initialPlayers,
-      walls: [],
-      turnIndex: 0,
-      moveLog: [],
-      status: "active",
-      winner: null,
-    };
-
-    for (let i = 0; i < currentStep; i++) {
-      state = applyMove(state, fullGame.moveLog[i]!);
+    // First render: build initial state + apply currentStep moves
+    if (!replayState) {
+      let state = buildInitialState(fullGame);
+      for (let i = 0; i < currentStep; i++) {
+        state = applyMove(state, fullGame.moveLog[i]!);
+      }
+      setReplayState(state);
+      setReplayStep(currentStep);
+      return;
     }
-    setReplayState(state);
-  }, [fullGame, currentStep]);
+
+    // Same step: no work
+    if (currentStep === replayStep) return;
+
+    // Forward: apply moves from replayStep to currentStep
+    if (currentStep > replayStep) {
+      let state = replayState;
+      for (let i = replayStep; i < currentStep; i++) {
+        state = applyMove(state, fullGame.moveLog[i]!);
+      }
+      setReplayState(state);
+      setReplayStep(currentStep);
+      return;
+    }
+
+    // Backward: rebuild from scratch (rare, and only up to currentStep)
+    if (currentStep < replayStep) {
+      let state = buildInitialState(fullGame);
+      for (let i = 0; i < currentStep; i++) {
+        state = applyMove(state, fullGame.moveLog[i]!);
+      }
+      setReplayState(state);
+      setReplayStep(currentStep);
+    }
+  }, [fullGame, currentStep, replayState, replayStep]);
 
   if (!shareCode || !fullGame) {
     return (
@@ -134,4 +151,32 @@ export function ReplayScreen() {
       </div>
     </div>
   );
+}
+
+// Extract this so we can reuse the "build initial state" logic
+function buildInitialState(game: GameState): GameState {
+  const startPositions = getStartPositionsRaw(
+    game.players.length,
+    game.config.boardSize,
+  );
+  const startingWalls =
+    typeof game.config.startingWalls === "number"
+      ? game.config.startingWalls
+      : Math.max(3, 10 - game.players.length);
+
+  const players = game.players.map((p, i) => ({
+    ...p,
+    position: startPositions[p.startIndex ?? i]!,
+    wallsRemaining: startingWalls,
+  }));
+
+  return {
+    config: game.config,
+    players,
+    walls: [],
+    turnIndex: 0,
+    moveLog: [],
+    status: "active",
+    winner: null,
+  };
 }
