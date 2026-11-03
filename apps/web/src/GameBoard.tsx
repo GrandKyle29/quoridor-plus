@@ -4,6 +4,7 @@ import { legalMoves } from "@quoridor/engine";
 import type { GameState, Move, GameConfig } from "@quoridor/engine";
 import "./GameBoard.css";
 import { encodeShareCode } from "./shareCode";
+import { GameResults } from "./GameResults";
 
 interface GameBoardProps {
   playerNames: string[];
@@ -341,6 +342,8 @@ export function GameBoard({
               </button>
             )}
           </div>
+
+          {state.status === "finished" && <GameResults state={state} />}
         </div>
       ) : (
         <div
