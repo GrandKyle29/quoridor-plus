@@ -59,8 +59,13 @@ export function GameBoard({
   const [showSettings, setShowSettings] = useState(false);
 
   // --- MOVE CONFIRMATION ---
+  /*const [confirmMoves, setConfirmMoves] = useState(() => {
+    return localStorage.getItem("quoridor_confirmMoves") === "true";  OFF by default
+  });*/
   const [confirmMoves, setConfirmMoves] = useState(() => {
-    return localStorage.getItem("quoridor_confirmMoves") === "true";
+    const stored = localStorage.getItem("quoridor_confirmMoves");
+    // Default to true if never set; honor explicit "false" or "true" otherwise     On by default!
+    return stored === null ? true : stored === "true";
   });
   const [pendingMove, setPendingMove] = useState<Move | null>(null);
 
@@ -487,96 +492,118 @@ export function GameBoard({
           </div>
         </div>
       )}
-
       {/* SETTINGS PANEL */}
       {showSettings && (
-        <div
-          style={{
-            position: "absolute",
-            top: "60px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor: "#1f2937",
-            padding: "20px",
-            borderRadius: "8px",
-            border: "1px solid #4b5563",
-            zIndex: 100,
-            textAlign: "left",
-            width: "300px",
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>Game Settings</h3>
-          <p>
-            <strong>Board Size:</strong> {state.config.boardSize}x
-            {state.config.boardSize}
-          </p>
-          <p>
-            <strong>Goal:</strong>{" "}
-            {state.config.goalCondition === "center"
-              ? "King of the Hill"
-              : "Reach Opposite Edge"}
-          </p>
-          <p>
-            <strong>Walls:</strong> {state.config.startingWalls} per player
-          </p>
-
-          <hr style={{ borderColor: "#4b5563", margin: "15px 0" }} />
-
-          <label
+        <>
+          {/* Invisible backdrop — click anywhere outside to close */}
+          <div
+            onClick={() => setShowSettings(false)}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-              marginBottom: "15px",
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              zIndex: 99,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "60px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor: "#1f2937",
+              padding: "20px",
+              borderRadius: "8px",
+              border: "1px solid #4b5563",
+              zIndex: 100,
+              textAlign: "left",
+              width: "300px",
+              maxWidth: "90vw",
             }}
           >
-            <input
-              type="checkbox"
-              checked={confirmMoves}
-              onChange={(e) => setConfirmMoves(e.target.checked)}
-            />
-            Confirm moves before playing
-          </label>
+            {/* Close button */}
+            <button
+              onClick={() => setShowSettings(false)}
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "8px",
+                width: "28px",
+                height: "28px",
+                padding: 0,
+                backgroundColor: "transparent",
+                color: "#ccc",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "20px",
+                lineHeight: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              aria-label="Close settings"
+            >
+              ×
+            </button>
 
-          <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-            {(!isOnline || isHost) && (
-              <button
-                onClick={() => {
-                  setShowSettings(false);
-                  resetGame();
-                }}
-                style={{
-                  flex: 1,
-                  padding: "8px",
-                  backgroundColor: "#ef4444",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Restart Game
-              </button>
-            )}
-            {onLeave && (
-              <button
-                onClick={() => onLeave && onLeave(state.config)}
-                style={{
-                  flex: 1,
-                  padding: "8px",
-                  backgroundColor: "#4b5563",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Quit
-              </button>
-            )}
+            <h3 style={{ marginTop: 0 }}>Game Settings</h3>
+            <p>
+              <strong>Board Size:</strong> {state.config.boardSize}x
+              {state.config.boardSize}
+            </p>
+            <p>
+              <strong>Goal:</strong>{" "}
+              {state.config.goalCondition === "center"
+                ? "King of the Hill"
+                : "Reach Opposite Edge"}
+            </p>
+            <p>
+              <strong>Walls:</strong> {state.config.startingWalls} per player
+            </p>
+
+            <hr style={{ borderColor: "#4b5563", margin: "15px 0" }} />
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                marginBottom: "15px",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={confirmMoves}
+                onChange={(e) => setConfirmMoves(e.target.checked)}
+              />
+              Confirm moves before playing
+            </label>
+
+            <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+              {(!isOnline || isHost) && (
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    resetGame();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "8px",
+                    backgroundColor: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Restart Game
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* BOARD */}
