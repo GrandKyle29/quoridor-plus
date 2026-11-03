@@ -113,3 +113,12 @@
   border-radius: 50%;
   background-color: inherit; /* Inherits the color from the parent div */
 }
+.tile.pending-move {
+  background-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px #93c5fd;
+  z-index: 2;
+}
+
+.ghost-wall.pending-wall {
+  background-color: rgba(59, 130, 246, 0.9) !important;
+}

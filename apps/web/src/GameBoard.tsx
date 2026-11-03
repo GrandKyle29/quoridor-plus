@@ -21,7 +21,6 @@ interface GameBoardProps {
   myLocalName?: string;
   isHost?: boolean;
   playerColors?: string[];
-  //onShareReplay?: () => void;
   onShareReplay?: () => void;
   isSharingReplay?: boolean;
 }
@@ -59,6 +58,21 @@ export function GameBoard({
 
   const [showSettings, setShowSettings] = useState(false);
 
+  // --- MOVE CONFIRMATION ---
+  const [confirmMoves, setConfirmMoves] = useState(() => {
+    return localStorage.getItem("quoridor_confirmMoves") === "true";
+  });
+  const [pendingMove, setPendingMove] = useState<Move | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("quoridor_confirmMoves", String(confirmMoves));
+  }, [confirmMoves]);
+
+  // Reset pending move when turn changes or game resets
+  useEffect(() => {
+    setPendingMove(null);
+  }, [state?.turnIndex, state?.status]);
+
   const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
   // --- DETERMINE LOCAL PLAYER ID ---
@@ -89,19 +103,16 @@ export function GameBoard({
   useEffect(() => {
     if (!state) return;
 
-    // moveCount is authoritative for online games; moveLog.length for local
     const currentCount =
       (state as any).moveCount !== undefined
         ? (state as any).moveCount
         : state.moveLog.length;
 
-    // Game reset
     if (currentCount < prevMoveCount.current) {
       prevMoveCount.current = currentCount;
       return;
     }
 
-    // New move
     if (currentCount > prevMoveCount.current) {
       const lastMove =
         (state as any).lastMove ?? state.moveLog[state.moveLog.length - 1];
@@ -110,7 +121,6 @@ export function GameBoard({
       prevMoveCount.current = currentCount;
     }
 
-    // Win
     if (state.status === "finished" && prevStatus.current !== "finished") {
       playSound("win");
     }
@@ -129,28 +139,7 @@ export function GameBoard({
     return (
       <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
         <h2>🚨 Game state has no players</h2>
-        <pre
-          style={{
-            fontSize: "11px",
-            backgroundColor: "#1a1a1a",
-            padding: "10px",
-            overflow: "auto",
-            maxHeight: "300px",
-            textAlign: "left",
-          }}
-        >
-          {JSON.stringify(state, null, 2)}
-        </pre>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: "10px",
-            padding: "8px 16px",
-            cursor: "pointer",
-          }}
-        >
-          Reload
-        </button>
+        <button onClick={() => window.location.reload()}>Reload</button>
       </div>
     );
   }
@@ -160,28 +149,7 @@ export function GameBoard({
     return (
       <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
         <h2>🚨 Game state has malformed walls</h2>
-        <pre
-          style={{
-            fontSize: "11px",
-            backgroundColor: "#1a1a1a",
-            padding: "10px",
-            overflow: "auto",
-            maxHeight: "300px",
-            textAlign: "left",
-          }}
-        >
-          {JSON.stringify(state, null, 2)}
-        </pre>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: "10px",
-            padding: "8px 16px",
-            cursor: "pointer",
-          }}
-        >
-          Reload
-        </button>
+        <button onClick={() => window.location.reload()}>Reload</button>
       </div>
     );
   }
@@ -191,28 +159,7 @@ export function GameBoard({
     return (
       <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
         <h2>🚨 Game state has malformed config</h2>
-        <pre
-          style={{
-            fontSize: "11px",
-            backgroundColor: "#1a1a1a",
-            padding: "10px",
-            overflow: "auto",
-            maxHeight: "300px",
-            textAlign: "left",
-          }}
-        >
-          {JSON.stringify(state, null, 2)}
-        </pre>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: "10px",
-            padding: "8px 16px",
-            cursor: "pointer",
-          }}
-        >
-          Reload
-        </button>
+        <button onClick={() => window.location.reload()}>Reload</button>
       </div>
     );
   }
@@ -225,23 +172,10 @@ export function GameBoard({
     currentMoves = legalMoves(state);
   } catch (err) {
     console.error("🚨 legalMoves threw:", err);
-    console.error("🚨 State at crash:", JSON.stringify(state, null, 2));
     return (
       <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
         <h2>🚨 legalMoves crashed</h2>
-        <p style={{ color: "#ccc" }}>
-          Check the browser console for the full state and error.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: "10px",
-            padding: "8px 16px",
-            cursor: "pointer",
-          }}
-        >
-          Reload
-        </button>
+        <button onClick={() => window.location.reload()}>Reload</button>
       </div>
     );
   }
@@ -255,6 +189,21 @@ export function GameBoard({
 
   const isValidMove = (x: number, y: number) =>
     validPawnMoves.some((m) => m.x === x && m.y === y);
+
+  // --- MOVE CLICK HANDLER ---
+  const handleMoveClick = (move: Move) => {
+    if (confirmMoves) {
+      // Double-click on the same target = confirm
+      if (pendingMove && JSON.stringify(pendingMove) === JSON.stringify(move)) {
+        playMove(move);
+        setPendingMove(null);
+      } else {
+        setPendingMove(move);
+      }
+    } else {
+      playMove(move);
+    }
+  };
 
   const isDisconnected = (playerName: string) => {
     if (!onlinePlayers) return false;
@@ -539,6 +488,7 @@ export function GameBoard({
         </div>
       )}
 
+      {/* SETTINGS PANEL */}
       {showSettings && (
         <div
           style={{
@@ -569,6 +519,26 @@ export function GameBoard({
           <p>
             <strong>Walls:</strong> {state.config.startingWalls} per player
           </p>
+
+          <hr style={{ borderColor: "#4b5563", margin: "15px 0" }} />
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              marginBottom: "15px",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={confirmMoves}
+              onChange={(e) => setConfirmMoves(e.target.checked)}
+            />
+            Confirm moves before playing
+          </label>
+
           <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
             {(!isOnline || isHost) && (
               <button
@@ -623,13 +593,21 @@ export function GameBoard({
           {Array.from({ length: boardSize }).map((_, y) =>
             Array.from({ length: boardSize }).map((_, x) => {
               const isTarget = isValidMove(x, y);
+              const isPending =
+                pendingMove?.kind === "move" &&
+                pendingMove.to.x === x &&
+                pendingMove.to.y === y;
               return (
                 <div
                   key={`tile-${x}-${y}`}
-                  onClick={() =>
-                    isTarget && playMove({ kind: "move", to: { x, y } })
-                  }
-                  className={`tile ${isTarget ? "valid-move" : ""}`}
+                  onClick={() => {
+                    if (isTarget) {
+                      handleMoveClick({ kind: "move", to: { x, y } });
+                    } else if (pendingMove) {
+                      setPendingMove(null);
+                    }
+                  }}
+                  className={`tile ${isTarget ? "valid-move" : ""} ${isPending ? "pending-move" : ""}`}
                   style={{
                     gridColumn: x * 2 + 1,
                     gridRow: (boardSize - 1 - y) * 2 + 1,
@@ -678,12 +656,17 @@ export function GameBoard({
 
           {/* 3. Ghost Walls */}
           {validWallMoves.map((wall, i) => {
+            const isPending =
+              pendingMove?.kind === "wall" &&
+              pendingMove.wall.coord.x === wall.coord.x &&
+              pendingMove.wall.coord.y === wall.coord.y &&
+              pendingMove.wall.orientation === wall.orientation;
             if (wall.orientation === "horizontal") {
               return (
                 <div
                   key={`ghost-h-${i}`}
-                  className="ghost-wall"
-                  onClick={() => playMove({ kind: "wall", wall })}
+                  className={`ghost-wall ${isPending ? "pending-wall" : ""}`}
+                  onClick={() => handleMoveClick({ kind: "wall", wall })}
                   style={{
                     gridColumn: `${wall.coord.x * 2 + 1} / span 3`,
                     gridRow: (boardSize - 1 - wall.coord.y) * 2,
@@ -694,8 +677,8 @@ export function GameBoard({
               return (
                 <div
                   key={`ghost-v-${i}`}
-                  className="ghost-wall"
-                  onClick={() => playMove({ kind: "wall", wall })}
+                  className={`ghost-wall ${isPending ? "pending-wall" : ""}`}
+                  onClick={() => handleMoveClick({ kind: "wall", wall })}
                   style={{
                     gridColumn: wall.coord.x * 2 + 2,
                     gridRow: `${(boardSize - 1 - wall.coord.y) * 2 - 1} / span 3`,
@@ -721,6 +704,66 @@ export function GameBoard({
           })}
         </div>
       </div>
+
+      {/* CONFIRM BAR */}
+      {pendingMove && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#1f2937",
+            padding: "12px 20px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            display: "flex",
+            gap: "10px",
+            alignItems: "center",
+            zIndex: 1000,
+            border: "2px solid #3b82f6",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            maxWidth: "90vw",
+          }}
+        >
+          <span style={{ color: "#ccc", fontSize: "14px" }}>
+            {pendingMove.kind === "move"
+              ? `Move to (${pendingMove.to.x}, ${pendingMove.to.y})?`
+              : `Place ${pendingMove.wall.orientation} wall at (${pendingMove.wall.coord.x}, ${pendingMove.wall.coord.y})?`}
+          </span>
+          <button
+            onClick={() => {
+              playMove(pendingMove);
+              setPendingMove(null);
+            }}
+            style={{
+              padding: "6px 16px",
+              backgroundColor: "#4ade80",
+              color: "#1f2937",
+              border: "none",
+              borderRadius: "4px",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            onClick={() => setPendingMove(null)}
+            style={{
+              padding: "6px 16px",
+              backgroundColor: "#4b5563",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
