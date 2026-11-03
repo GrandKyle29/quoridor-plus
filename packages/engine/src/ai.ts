@@ -4,7 +4,7 @@ import { legalMoves } from "./moves";
 import { applyMove, isPlayerGoal } from "./game";
 
 // --- 1. Distance BFS ---
-function getDistanceToGoal(state: GameState, playerId: string): number {
+export function getDistanceToGoal(state: GameState, playerId: string): number {
   const player = state.players.find((p) => p.id === playerId)!;
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
   const { boardSize } = state.config;
