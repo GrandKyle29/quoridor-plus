@@ -26,6 +26,26 @@ interface GameBoardProps {
   isSharingReplay?: boolean;
 }
 
+function getGoalForPlayer(startIndex: number | undefined) {
+  // Map startIndex to goal direction
+  // 0: bottom → goal top
+  // 1: top → goal bottom
+  // 2: left → goal right
+  // 3: right → goal left
+  switch (startIndex) {
+    case 0:
+      return "top";
+    case 1:
+      return "bottom";
+    case 2:
+      return "right";
+    case 3:
+      return "left";
+    default:
+      return null;
+  }
+}
+
 export function GameBoard({
   playerNames,
   vsBot,
@@ -78,7 +98,14 @@ export function GameBoard({
   useEffect(() => {
     setPendingMove(null);
   }, [state?.turnIndex, state?.status]);
+  const [showGoalLines, setShowGoalLines] = useState(() => {
+    const stored = localStorage.getItem("quoridor_showGoalLines");
+    return stored === null ? true : stored === "true"; // default ON
+  });
 
+  useEffect(() => {
+    localStorage.setItem("quoridor_showGoalLines", String(showGoalLines));
+  }, [showGoalLines]);
   const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
   // --- DETERMINE LOCAL PLAYER ID ---
@@ -583,7 +610,22 @@ export function GameBoard({
               />
               Confirm moves before playing
             </label>
-
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                marginBottom: "15px",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showGoalLines}
+                onChange={(e) => setShowGoalLines(e.target.checked)}
+              />
+              Show goal indicators
+            </label>
             <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
               {(!isOnline || isHost) && (
                 <button
@@ -646,7 +688,89 @@ export function GameBoard({
               );
             }),
           )}
+          {/* Goal line indicators */}
+          {state.status !== "finished" &&
+            showGoalLines &&
+            state.config.goalCondition === "opposite-edge" && (
+              <>
+                {state.players.map((player) => {
+                  const goal = getGoalForPlayer(player.startIndex);
+                  if (!goal) return null;
+                  const color =
+                    player.color ||
+                    DEFAULT_COLORS[parseInt(player.id.replace("p", ""))];
 
+                  if (goal === "top") {
+                    return (
+                      <div
+                        key={`goal-${player.id}`}
+                        className="goal-line horizontal"
+                        style={{
+                          top: 0,
+                          backgroundColor: color,
+                          boxShadow: `0 0 8px ${color}`,
+                        }}
+                      />
+                    );
+                  }
+                  if (goal === "bottom") {
+                    return (
+                      <div
+                        key={`goal-${player.id}`}
+                        className="goal-line horizontal"
+                        style={{
+                          bottom: 0,
+                          backgroundColor: color,
+                          boxShadow: `0 0 8px ${color}`,
+                        }}
+                      />
+                    );
+                  }
+                  if (goal === "left") {
+                    return (
+                      <div
+                        key={`goal-${player.id}`}
+                        className="goal-line vertical"
+                        style={{
+                          left: 0,
+                          backgroundColor: color,
+                          boxShadow: `0 0 8px ${color}`,
+                        }}
+                      />
+                    );
+                  }
+                  if (goal === "right") {
+                    return (
+                      <div
+                        key={`goal-${player.id}`}
+                        className="goal-line vertical"
+                        style={{
+                          right: 0,
+                          backgroundColor: color,
+                          boxShadow: `0 0 8px ${color}`,
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </>
+            )}
+
+          {/* Center goal ring for King of the Hill */}
+          {state.status !== "finished" &&
+            showGoalLines &&
+            state.config.goalCondition === "center" && (
+              <div
+                className="goal-center"
+                style={{
+                  gridColumn: `${Math.floor(boardSize / 2) * 2 + 1} / span 1`,
+                  gridRow: `${Math.floor(boardSize / 2) * 2 + 1} / span 1`,
+                  justifySelf: "stretch",
+                  alignSelf: "stretch",
+                }}
+              />
+            )}
           {/* 2. Placed Walls */}
           {state.walls.map((wall, i) => {
             const playerIndex = wall.placedBy
