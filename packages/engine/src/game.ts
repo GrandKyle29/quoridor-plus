@@ -13,10 +13,10 @@ export function buildInitialState(
   config: GameConfig,
   playerData: { name: string; color?: string; startIndex: number }[],
 ): GameState {
-  const startPositions = getStartPositionsRaw(
-    playerData.length,
-    config.boardSize,
-  );
+  const startPositions =
+    config.goalCondition === "top"
+      ? getTopRowStartPositions(playerData.length, config.boardSize)
+      : getStartPositionsRaw(playerData.length, config.boardSize);
   const startingWalls =
     config.startingWalls === "scaled"
       ? Math.max(3, 10 - playerData.length)
@@ -98,6 +98,34 @@ export function getStartPositionsRaw(count: number, size: number): Coord[] {
     ];
   throw new Error("Player count must be 2, 3, or 4");
 }
+function getTopRowStartPositions(count: number, boardSize: number): Coord[] {
+  const y = 0;
+  const center = Math.floor(boardSize / 2);
+  const clamp = (x: number) => Math.max(0, Math.min(boardSize - 1, x));
+
+  if (count === 2) {
+    return [
+      { x: clamp(center - 1), y },
+      { x: clamp(center + 1), y },
+    ];
+  }
+  if (count === 3) {
+    return [
+      { x: clamp(center - 2), y },
+      { x: clamp(center), y },
+      { x: clamp(center + 2), y },
+    ];
+  }
+  if (count === 4) {
+    return [
+      { x: clamp(center - 3), y },
+      { x: clamp(center - 1), y },
+      { x: clamp(center + 1), y },
+      { x: clamp(center + 3), y },
+    ];
+  }
+  throw new Error("Top-row mode supports 2-4 players");
+}
 // Fisher-Yates shuffle for randomizing player order
 function shuffleArray<T>(array: T[]): T[] {
   const newArr = [...array];
@@ -156,6 +184,10 @@ export function isPlayerGoal(
     return coord.x === center && coord.y === center;
   }
 
+  if (goalCondition === "top") {
+    return coord.y === boardSize - 1;
+  }
+
   if (goalCondition === "opposite-edge") {
     const player = state.players[playerIndex];
     if (!player) return false;
@@ -168,7 +200,6 @@ export function isPlayerGoal(
 
   return false;
 }
-
 // Update checkWin to use the helper
 function checkWin(state: GameState, player: Player): boolean {
   const playerIndex = state.players.findIndex((p) => p.id === player.id);

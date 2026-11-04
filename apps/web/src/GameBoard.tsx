@@ -814,6 +814,19 @@ export function GameBoard({
                 }}
               />
             )}
+          {/*top gold line for Reach the Top*/}
+          {state.status !== "finished" &&
+            showGoalLines &&
+            state.config.goalCondition === "top" && (
+              <div
+                className="goal-line horizontal"
+                style={{
+                  top: 0,
+                  backgroundColor: "#fbbf24",
+                  boxShadow: "0 0 8px #fbbf24",
+                }}
+              />
+            )}
           {/* 2. Placed Walls */}
           {state.walls.map((wall, i) => {
             const playerIndex = wall.placedBy

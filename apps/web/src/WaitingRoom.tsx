@@ -304,6 +304,7 @@ export function WaitingRoom({
           >
             <option value="opposite-edge">Reach Opposite Side</option>
             <option value="center">King of the Hill</option>
+            <option value="top">Reach the Top</option>
           </select>
         </div>
 
