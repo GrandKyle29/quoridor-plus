@@ -5,33 +5,6 @@ import type { GameState } from "@quoridor/engine";
 import { GameBoard } from "./GameBoard";
 import { decodeShareCode } from "./shareCode";
 
-function buildInitialState(game: GameState): GameState {
-  const startPositions = getStartPositionsRaw(
-    game.players.length,
-    game.config.boardSize,
-  );
-  const startingWalls =
-    typeof game.config.startingWalls === "number"
-      ? game.config.startingWalls
-      : Math.max(3, 10 - game.players.length);
-
-  const players = game.players.map((p, i) => ({
-    ...p,
-    position: startPositions[p.startIndex ?? i]!,
-    wallsRemaining: startingWalls,
-  }));
-
-  return {
-    config: game.config,
-    players,
-    walls: [],
-    turnIndex: 0,
-    moveLog: [],
-    status: "active",
-    winner: null,
-  };
-}
-
 export function ReplayScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -57,11 +30,10 @@ export function ReplayScreen() {
     }
   }, [shareCode]);
 
-  // Incremental scrub: apply forward delta from replayStep to currentStep
-  useEffect(() => {
-    if (!fullGame) return;
-
-    const initial = buildInitialState(
+  // Build a fresh initial state using the engine's source of truth
+  const buildFreshInitialState = (): GameState | null => {
+    if (!fullGame) return null;
+    return buildInitialState(
       fullGame.config,
       fullGame.players.map((p, i) => ({
         name: p.name,
@@ -69,9 +41,14 @@ export function ReplayScreen() {
         startIndex: p.startIndex ?? i,
       })),
     );
+  };
+
+  // Incremental scrub: apply forward delta from replayStep to currentStep
+  useEffect(() => {
+    if (!fullGame) return;
 
     if (!replayState) {
-      let state = initial;
+      let state = buildFreshInitialState()!;
       for (let i = 0; i < currentStep; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }
@@ -93,7 +70,7 @@ export function ReplayScreen() {
     }
 
     if (currentStep < replayStep) {
-      let state = initial;
+      let state = buildFreshInitialState()!;
       for (let i = 0; i < currentStep; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }
@@ -116,7 +93,6 @@ export function ReplayScreen() {
       });
     };
 
-    // Speed: adjust this value to change how fast playback runs (ms per move)
     const delay = 500;
     playTimer.current = window.setInterval(tick, delay);
 
@@ -153,8 +129,6 @@ export function ReplayScreen() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [fullGame]);
-
-  // ---- UI ----
 
   if (!shareCode || !fullGame) {
     return (
@@ -194,7 +168,6 @@ export function ReplayScreen() {
     <div style={{ textAlign: "center", color: "white" }}>
       <h2>Replay</h2>
 
-      {/* SCRUBBER */}
       <div style={{ marginBottom: "10px" }}>
         <p style={{ margin: "0 0 10px 0" }}>
           Move {currentStep} of {maxStep}
@@ -212,7 +185,6 @@ export function ReplayScreen() {
         />
       </div>
 
-      {/* CONTROLS */}
       <div
         style={{
           display: "flex",
@@ -322,7 +294,6 @@ export function ReplayScreen() {
         ← → to step · Space to play/pause
       </p>
 
-      {/* BOARD */}
       {replayState && (
         <GameBoard
           playerNames={replayState.players.map((p) => p.name)}
@@ -334,7 +305,6 @@ export function ReplayScreen() {
         />
       )}
 
-      {/* FOOTER */}
       <div style={{ marginTop: "20px", marginBottom: "30px" }}>
         <button
           onClick={() => {
