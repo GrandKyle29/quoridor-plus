@@ -463,7 +463,48 @@ export function GameBoard({
               )}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            {state.config.wallPool === "shared" && (
+              <div
+                style={{
+                  backgroundColor: "#374151",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border: "2px solid #eab308",
+                  width: "130px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#eab308",
+                    fontWeight: "bold",
+                    marginBottom: "4px",
+                  }}
+                >
+                  SHARED POOL
+                </div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    color: "#fff",
+                  }}
+                >
+                  {state.sharedWallsRemaining ?? 0}
+                </div>
+              </div>
+            )}
             {state.players.map((p, i) => {
               const disconnected = isDisconnected(p.name);
               return (
@@ -513,11 +554,11 @@ export function GameBoard({
                       {p.name}
                     </strong>
                   </div>
-                  <div style={{ fontSize: "14px", color: "#ccc" }}>
-                    {state.config.wallPool === "shared"
-                      ? `${state.config.startingWalls} max`
-                      : `Walls: ${p.wallsRemaining}`}
-                  </div>
+                  {state.config.wallPool !== "shared" && (
+                    <div style={{ fontSize: "14px", color: "#ccc" }}>
+                      Walls: {p.wallsRemaining}
+                    </div>
+                  )}
                 </div>
               );
             })}

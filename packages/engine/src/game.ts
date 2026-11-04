@@ -126,6 +126,7 @@ function copyState(state: GameState): GameState {
     moveLog: [...state.moveLog],
     status: state.status,
     winner: state.winner,
+    sharedWallsRemaining: state.sharedWallsRemaining,
   };
 }
 export function isPlayerGoal(
