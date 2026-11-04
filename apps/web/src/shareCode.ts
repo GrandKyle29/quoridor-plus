@@ -1,12 +1,12 @@
 import LZString from "lz-string";
 import {
   applyMove,
-  getStartPositionsRaw,
-  encodeMoves,
+  buildInitialState,
   decodeMoves,
+  encodeMoves,
   legalMoves,
 } from "@quoridor/engine";
-import type { GameConfig, GameState, Move, Player } from "@quoridor/engine";
+import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
 export type ShareData = {
   config: GameConfig;
@@ -22,7 +22,6 @@ export function encodeShareCode(state: GameState): string {
       color: p.color || "#ffffff",
       startIndex: p.startIndex ?? 0,
     })),
-    // Compact-encode the move log
     moveLog: encodeMoves(state.moveLog),
   };
 
@@ -39,7 +38,7 @@ export function decodeShareCode(code: string): GameState | null {
 
     if (raw.config.schemaVersion !== 2) {
       throw new Error(
-        `This replay uses schema version ${raw.config.schemaVersion}, which is not compatible with the current game.`,
+        `This replay uses schema version ${raw.config.schemaVersion}, which is not compatible.`,
       );
     }
 
@@ -48,35 +47,9 @@ export function decodeShareCode(code: string): GameState | null {
       raw.players;
     const moveLog: Move[] = decodeMoves(raw.moveLog);
 
-    const startPositions = getStartPositionsRaw(
-      playerData.length,
-      config.boardSize,
-    );
-    const startingWalls =
-      typeof config.startingWalls === "number"
-        ? config.startingWalls
-        : Math.max(3, 10 - playerData.length);
+    // Use the SAME builder that createGame uses — no duplicate logic!
+    let currentState = buildInitialState(config, playerData);
 
-    const players: Player[] = playerData.map((p, i) => ({
-      id: `p${i}`,
-      name: p.name,
-      color: p.color,
-      position: startPositions[p.startIndex]!,
-      wallsRemaining: startingWalls,
-      connected: true,
-      eliminated: false,
-      startIndex: p.startIndex,
-    }));
-
-    let currentState: GameState = {
-      config,
-      players,
-      walls: [],
-      turnIndex: 0,
-      moveLog: [],
-      status: "active",
-      winner: null,
-    };
     for (let i = 0; i < moveLog.length; i++) {
       const move = moveLog[i]!;
       try {
@@ -92,6 +65,7 @@ export function decodeShareCode(code: string): GameState | null {
           })),
           wallsCount: currentState.walls.length,
           turnIndex: currentState.turnIndex,
+          sharedWallsRemaining: currentState.sharedWallsRemaining,
         });
         const legal = legalMoves(currentState);
         console.error(

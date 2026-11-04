@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { applyMove, getStartPositionsRaw } from "@quoridor/engine";
+import { applyMove, buildInitialState } from "@quoridor/engine";
 import type { GameState } from "@quoridor/engine";
 import { GameBoard } from "./GameBoard";
 import { decodeShareCode } from "./shareCode";
@@ -61,8 +61,17 @@ export function ReplayScreen() {
   useEffect(() => {
     if (!fullGame) return;
 
+    const initial = buildInitialState(
+      fullGame.config,
+      fullGame.players.map((p, i) => ({
+        name: p.name,
+        color: p.color,
+        startIndex: p.startIndex ?? i,
+      })),
+    );
+
     if (!replayState) {
-      let state = buildInitialState(fullGame);
+      let state = initial;
       for (let i = 0; i < currentStep; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }
@@ -83,9 +92,8 @@ export function ReplayScreen() {
       return;
     }
 
-    // Backward: rebuild from scratch up to currentStep
     if (currentStep < replayStep) {
-      let state = buildInitialState(fullGame);
+      let state = initial;
       for (let i = 0; i < currentStep; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }

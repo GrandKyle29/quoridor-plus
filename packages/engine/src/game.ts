@@ -3,6 +3,52 @@ import type { GameState } from "./state";
 import type { Move, Player, Coord } from "./types";
 import { legalMoves } from "./moves"; // We need this to validate!
 
+/**
+ * Build the initial GameState from a config and player list.
+ * This is THE source of truth for initial state construction.
+ * Both createGame and any reconstruction (replay, rewind, etc.)
+ * must use this to guarantee they produce identical states.
+ */
+export function buildInitialState(
+  config: GameConfig,
+  playerData: { name: string; color?: string; startIndex: number }[],
+): GameState {
+  const startPositions = getStartPositionsRaw(
+    playerData.length,
+    config.boardSize,
+  );
+  const startingWalls =
+    config.startingWalls === "scaled"
+      ? Math.max(3, 10 - playerData.length)
+      : config.startingWalls;
+
+  let sharedWallsRemaining: number | undefined;
+  if (config.wallPool === "shared") {
+    sharedWallsRemaining = startingWalls * playerData.length;
+  }
+
+  const players: Player[] = playerData.map((p, i) => ({
+    id: `p${i}`,
+    name: p.name,
+    color: p.color,
+    position: startPositions[p.startIndex]!,
+    wallsRemaining: config.wallPool === "shared" ? 0 : startingWalls,
+    connected: true,
+    eliminated: false,
+    startIndex: p.startIndex,
+  }));
+
+  return {
+    config,
+    players,
+    walls: [],
+    turnIndex: 0,
+    moveLog: [],
+    status: "active",
+    winner: null,
+    sharedWallsRemaining,
+  };
+}
 export function getStartPositions(count: number, size: number): Coord[] {
   const mid = Math.floor(size / 2);
   const max = size - 1;
@@ -66,54 +112,23 @@ export function createGame(
   playerNames: string[],
   playerColors?: string[],
 ): GameState {
-  // 1. Create a combined array of player data so we don't lose track of colors
   const combinedPlayers = playerNames.map((name, i) => ({
     name,
     color: playerColors?.[i],
   }));
 
-  // 2. Shuffle them
   const shouldRandomize = config.randomizeSpawns !== false;
   const shuffledPlayers = shouldRandomize
     ? shuffleArray(combinedPlayers)
     : combinedPlayers;
 
-  // 3. Extract the names back out (now shuffled)
-  const finalNames = shuffledPlayers.map((p) => p.name);
-  const startPositions = getStartPositions(finalNames.length, config.boardSize);
-
-  const startingWalls =
-    config.startingWalls === "scaled"
-      ? Math.max(3, 10 - finalNames.length)
-      : config.startingWalls;
-  // NEW: compute shared wall pool
-  let sharedWallsRemaining: number | undefined;
-  if (config.wallPool === "shared") {
-    sharedWallsRemaining = startingWalls * finalNames.length;
-  }
-
-  // 4. Create the final player objects
-  const players: Player[] = shuffledPlayers.map((p, index) => ({
-    id: `p${index}`,
+  const playerData = shuffledPlayers.map((p, i) => ({
     name: p.name,
-    position: startPositions[index]!,
-    wallsRemaining: config.wallPool === "shared" ? 0 : startingWalls, // individual count unused when shared
-    connected: true,
-    eliminated: false,
-    startIndex: index,
-    color: p.color, // Keep the color with the player!
+    color: p.color,
+    startIndex: i,
   }));
 
-  return {
-    config,
-    players,
-    walls: [],
-    turnIndex: 0, //always start with whoever ended up with 0
-    moveLog: [],
-    status: "active",
-    winner: null,
-    sharedWallsRemaining,
-  };
+  return buildInitialState(config, playerData);
 }
 
 // Helper to deep-copy the state so we don't mutate the original
