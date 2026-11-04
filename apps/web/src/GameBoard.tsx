@@ -514,12 +514,42 @@ export function GameBoard({
                     </strong>
                   </div>
                   <div style={{ fontSize: "14px", color: "#ccc" }}>
-                    Walls: {p.wallsRemaining}
+                    {state.config.wallPool === "shared"
+                      ? `${state.config.startingWalls} max`
+                      : `Walls: ${p.wallsRemaining}`}
                   </div>
                 </div>
               );
             })}
           </div>
+          {state.config.wallPool === "shared" && (
+            <div
+              style={{
+                backgroundColor: "#374151",
+                padding: "10px 16px",
+                borderRadius: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <strong style={{ color: "#ccc" }}>Shared Walls:</strong>
+              <span
+                style={{
+                  color:
+                    (state.sharedWallsRemaining ?? 0) > 0
+                      ? (state.sharedWallsRemaining ?? 0) < 3
+                        ? "#ef4444"
+                        : "#4ade80"
+                      : "#ef4444",
+                  fontWeight: "bold",
+                  fontSize: "18px",
+                }}
+              >
+                {state.sharedWallsRemaining ?? 0}
+              </span>
+            </div>
+          )}
         </div>
       )}
       {/* SETTINGS PANEL */}

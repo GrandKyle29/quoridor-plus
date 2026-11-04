@@ -86,13 +86,18 @@ export function createGame(
     config.startingWalls === "scaled"
       ? Math.max(3, 10 - finalNames.length)
       : config.startingWalls;
+  // NEW: compute shared wall pool
+  let sharedWallsRemaining: number | undefined;
+  if (config.wallPool === "shared") {
+    sharedWallsRemaining = startingWalls * finalNames.length;
+  }
 
   // 4. Create the final player objects
   const players: Player[] = shuffledPlayers.map((p, index) => ({
     id: `p${index}`,
     name: p.name,
     position: startPositions[index]!,
-    wallsRemaining: startingWalls,
+    wallsRemaining: config.wallPool === "shared" ? 0 : startingWalls, // individual count unused when shared
     connected: true,
     eliminated: false,
     startIndex: index,
@@ -103,10 +108,11 @@ export function createGame(
     config,
     players,
     walls: [],
-    turnIndex: 0, // Always start with whoever ended up at index 0
+    turnIndex: 0, //always start with whoever ended up with 0
     moveLog: [],
     status: "active",
     winner: null,
+    sharedWallsRemaining,
   };
 }
 
@@ -181,9 +187,14 @@ export function applyMove(state: GameState, move: Move): GameState {
   if (move.kind === "move") {
     currentPlayer.position = move.to;
   } else if (move.kind === "wall") {
-    // NEW: Attach the player's ID to the wall
     nextState.walls.push({ ...move.wall, placedBy: currentPlayer.id });
-    currentPlayer.wallsRemaining -= 1;
+
+    if (nextState.config.wallPool === "shared") {
+      nextState.sharedWallsRemaining =
+        (nextState.sharedWallsRemaining ?? 0) - 1;
+    } else {
+      currentPlayer.wallsRemaining -= 1;
+    }
   }
   // 5. Log the move (useful for replay/spectators later)
   nextState.moveLog.push(move);

@@ -367,10 +367,11 @@ export function legalMoves(state: GameState): Move[] {
   }
 
   // Wall placements
-  if (
-    currentPlayer.wallsRemaining > 0 &&
-    state.config.wallPool === "per-player"
-  ) {
+  const hasWallsAvailable =
+    state.config.wallPool === "shared"
+      ? (state.sharedWallsRemaining ?? 0) > 0
+      : currentPlayer.wallsRemaining > 0;
+  if (hasWallsAvailable) {
     for (let wx = 0; wx < boardSize - 1; wx++) {
       for (let wy = 0; wy < boardSize - 1; wy++) {
         const coord = { x: wx, y: wy };

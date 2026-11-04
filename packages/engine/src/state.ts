@@ -9,4 +9,5 @@ export type GameState = {
   moveLog: Move[]; // append-only; state = fold(log)
   status: "lobby" | "active" | "finished";
   winner: PlayerId | null;
+  sharedWallsRemaining?: number; // <-- ADD this, only used when wallPool === "shared"
 };

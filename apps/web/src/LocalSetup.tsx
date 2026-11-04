@@ -17,6 +17,7 @@ export function LocalSetup() {
   const [startingWalls, setStartingWalls] = useState(
     prevConfig.startingWalls ?? 10,
   );
+  const [sharedWalls, setSharedWalls] = useState(false);
   const [useWood, setUseWood] = useState(false);
   const [botTimeLimit, setBotTimeLimit] = useState(1500);
   //const [botMode, setBotMode] = useState<"heuristic" | "minimax" | "defensive">( "heuristic",);
@@ -42,6 +43,8 @@ export function LocalSetup() {
           boardSize,
           goalCondition,
           startingWalls,
+          randomizeSpawns,
+          wallPool: sharedWalls ? "shared" : "per-player", // <-- ADD
           maxPlayers: botCount + 1,
         },
       },
@@ -108,6 +111,16 @@ export function LocalSetup() {
           onChange={(e) => setStartingWalls(Number(e.target.value))}
           style={{ width: "100%", padding: "8px" }}
         />
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={sharedWalls}
+            onChange={(e) => setSharedWalls(e.target.checked)}
+          />
+          Shared wall pool
+        </label>
       </div>
       <div style={{ marginBottom: "10px" }}>
         <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>

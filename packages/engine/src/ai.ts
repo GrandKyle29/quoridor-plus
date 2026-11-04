@@ -97,11 +97,25 @@ function evaluate(state: GameState, botId: string): number {
 
   // The exact heuristic from your previous version
   let score = -botDist + minOppDist * 1.5;
-  score += botPlayer.wallsRemaining * 0.1;
+
+  // NEW: wall valuation depends on mode
+  if (state.config.wallPool === "shared") {
+    // In shared mode, every wall the opponent uses is a wall we lose forever.
+    // So the bot should value the shared pool nearly as much as it values
+    // its own path. We also want the bot to be aggressive about *spending*
+    // walls early — so a shrinking pool should make the bot want to use
+    // walls NOW, not save them.
+    const sharedRemaining = state.sharedWallsRemaining ?? 0;
+    score += sharedRemaining * 0.5; // High value: walls are precious
+    // Small bonus for having spent walls aggressively (more walls on board = fewer for opponents)
+    score += state.walls.length * 0.1;
+  } else {
+    // Per-player mode: original behavior, unchanged
+    score += botPlayer.wallsRemaining * 0.1;
+  }
 
   return score;
 }
-
 // --- 3. Move Pruning ---
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);

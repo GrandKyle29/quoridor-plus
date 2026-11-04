@@ -339,6 +339,29 @@ export function WaitingRoom({
             <input
               type="checkbox"
               disabled={!isHost}
+              checked={room.config?.wallPool === "shared"}
+              onChange={(e) =>
+                updateConfig(
+                  "wallPool",
+                  e.target.checked ? "shared" : "per-player",
+                )
+              }
+            />
+            Shared wall pool
+          </label>
+        </div>
+        <div style={{ marginBottom: "10px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
+            }}
+          >
+            <input
+              type="checkbox"
+              disabled={!isHost}
               checked={room.config?.randomizeSpawns !== false}
               onChange={(e) =>
                 updateConfig("randomizeSpawns", e.target.checked)
