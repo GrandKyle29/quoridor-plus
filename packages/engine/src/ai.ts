@@ -146,7 +146,18 @@ function evaluate(state: GameState, botId: string): number {
     }
     score -= topThreatWeight * maxThreat;
   }
-
+  // DEBUG: only log every ~10 evals to avoid console spam
+  /*if (Math.random() < 0.01) {
+    console.log("🤖 eval", {
+      bot: botId,
+      finalScore: score,
+      botDist,
+      minOppDist,
+      baseScore: -botDist * botDistWeight + minOppDist * minOppDistWeight,
+      wallBonus: wallBonusWeight,
+      topThreatWeight,
+    });
+  }*/
   return score;
 }
 
@@ -231,22 +242,65 @@ function minimax(
 }
 
 // --- 5. Main Entry Point ---
+// --- Delta heuristic for move ordering ---
+// For a wall placement, computes:
+//   wallScore = 1.5 * (ΔOppDist) - 1.0 * (ΔMyDist)
+// where Δ is (distance after) - (distance before).
+// For pawn moves, returns the raw distance delta (simple).
+function evaluateMoveDelta(
+  state: GameState,
+  move: Move,
+  botId: string,
+): number {
+  const currentTurnPlayer = state.players[state.turnIndex]!;
+  const botDistBefore = getDistanceToGoal(state, botId);
+
+  let minOppDistBefore = 999;
+  for (const p of state.players) {
+    if (p.id !== botId) {
+      const d = getDistanceToGoal(state, p.id);
+      if (d < minOppDistBefore) minOppDistBefore = d;
+    }
+  }
+
+  // Simulate the move
+  const nextState = applyMove(state, move);
+  const botDistAfter = getDistanceToGoal(nextState, botId);
+
+  let minOppDistAfter = 999;
+  for (const p of nextState.players) {
+    if (p.id !== botId) {
+      const d = getDistanceToGoal(nextState, p.id);
+      if (d < minOppDistAfter) minOppDistAfter = d;
+    }
+  }
+
+  const deltaOpp = minOppDistAfter - minOppDistBefore;
+  const deltaMy = botDistAfter - botDistBefore;
+
+  if (move.kind === "wall") {
+    return 1.5 * deltaOpp - 1.0 * deltaMy;
+  }
+  // Pawn move: just reward reducing my own distance
+  return -deltaMy;
+}
+
+// --- Modified getBestMove to use delta for move ordering ---
 export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
 
-  // Sort moves: Pawn moves first to speed up pruning
   const moves = getPrunedMoves(state);
-  moves.sort((a, b) => {
-    if (a.kind === "move" && b.kind === "wall") return -1;
-    if (a.kind === "wall" && b.kind === "move") return 1;
-    return 0;
-  });
 
-  let bestMove = moves[0]!;
-  //let bestScore = -Infinity;
+  // Use the delta heuristic to sort moves (best first for Alpha-Beta pruning)
+  const scoredMoves = moves.map((move) => ({
+    move,
+    deltaScore: evaluateMoveDelta(state, move, botId),
+  }));
+  scoredMoves.sort((a, b) => b.deltaScore - a.deltaScore);
 
-  // Iterative deepening: Search depth 1, then 2, then 3... until time runs out
+  let bestMove = scoredMoves[0]!.move;
+
   for (let depth = 1; depth <= 6; depth++) {
     let currentBestMove = bestMove;
     let currentBestScore = -Infinity;
@@ -254,7 +308,7 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
     const beta = Infinity;
     let timedOut = false;
 
-    for (const move of moves) {
+    for (const { move } of scoredMoves) {
       if (Date.now() - startTime > timeLimit) {
         timedOut = true;
         break;
@@ -279,13 +333,9 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
       alpha = Math.max(alpha, score);
     }
 
-    // Only update the absolute best move if this depth finished completely
     if (!timedOut) {
       bestMove = currentBestMove;
-      //bestScore = currentBestScore;
     }
-
-    // If we ran out of time, stop searching deeper
     if (timedOut) break;
   }
 
