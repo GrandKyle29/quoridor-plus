@@ -252,7 +252,7 @@ function evaluateMoveDelta(
   move: Move,
   botId: string,
 ): number {
-  const currentTurnPlayer = state.players[state.turnIndex]!;
+  //const currentTurnPlayer = state.players[state.turnIndex]!;
   const botDistBefore = getDistanceToGoal(state, botId);
 
   let minOppDistBefore = 999;
