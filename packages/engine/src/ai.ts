@@ -134,7 +134,7 @@ function evaluate(state: GameState, botId: string): number {
     score += botPlayer.wallsRemaining * wallBonusWeight;
   }
 
-  if (state.config.goalCondition === "top") {
+  if ((state.config.goalCondition === "top") & (state.players.length > 2)) {
     let maxThreat = 0;
     for (const p of state.players) {
       if (p.id === botId) continue;
