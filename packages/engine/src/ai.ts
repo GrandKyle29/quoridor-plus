@@ -83,10 +83,10 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 const botDistWeight = 1;
 const minOppDistWeight = 1.5;
 const wallBonusWeight = 0.1;
-const topThreatWeight = 0.3;
+const topThreatWeight = 0.1; // How much the bot reacts to the max threat
 const sharedWallBonusWeight = 0.5; // was the magic 0.5 in shared branch
 const sharedSpentWeight = 0.1; // was the magic 0.1 in shared branch
-const topClearLaneWeight = 0.5; // was the magic 0.5 in the threat calculation
+const topClearLaneWeight = 0.5; // How much open lanes amplify a threat
 // ----------------
 //helper: How far is each player from closest horizontal wall above?
 function getClearLaneDistance(state: GameState, playerId: string): number {
