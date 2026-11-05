@@ -80,12 +80,12 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 
 // --- 2. Evaluation ---
 // --- WEIGHTS ---
-const botDistWeight = 1;
-const minOppDistWeight = 1.5;
-const wallBonusWeight = 0.1;
+const botDistWeight = 1; // How much each tile away is worth (bot)
+const minOppDistWeight = 1.5; // How much each tile away is worth (opponent)
+const wallBonusWeight = 0.1; // How much each wall the bot owns is worth
 const topThreatWeight = 0.3; // How much the bot reacts to the max threat
-const sharedWallBonusWeight = 0.5; // was the magic 0.5 in shared branch
-const sharedSpentWeight = 0.1; // was the magic 0.1 in shared branch
+const sharedWallBonusWeight = 0.0; // How many points Each wall left in the shared pool is worth
+const sharedSpentWeight = 0.1; // How many points Each wall placed by the bot is worth
 const topClearLaneWeight = 0.5; // How much open lanes amplify a threat
 // ----------------
 //helper: How far is each player from closest horizontal wall above?
