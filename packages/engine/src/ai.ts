@@ -79,7 +79,16 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 }
 
 // --- 2. Evaluation ---
-// Helper: how many tiles up until the nearest horizontal wall in the player's column?
+// --- WEIGHTS ---
+const botDistWeight = 1;
+const minOppDistWeight = 1.5;
+const wallBonusWeight = 0.1;
+const topThreatWeight = 0.3;
+const sharedWallBonusWeight = 0.5; // was the magic 0.5 in shared branch
+const sharedSpentWeight = 0.1; // was the magic 0.1 in shared branch
+const topClearLaneWeight = 0.5; // was the magic 0.5 in the threat calculation
+// ----------------
+//helper: How far is each player from closest horizontal wall above?
 function getClearLaneDistance(state: GameState, playerId: string): number {
   const { boardSize } = state.config;
   const player = state.players.find((p) => p.id === playerId)!;
@@ -98,7 +107,7 @@ function getClearLaneDistance(state: GameState, playerId: string): number {
 
   return nearestWallY - y;
 }
-// The actual evaulate function.
+//the actual evaluation function.
 function evaluate(state: GameState, botId: string): number {
   if (state.status === "finished") {
     return state.winner === botId ? 10000 : -10000;
@@ -115,14 +124,14 @@ function evaluate(state: GameState, botId: string): number {
     }
   }
 
-  let score = -botDist + minOppDist * 1.5;
+  let score = -botDist * botDistWeight + minOppDist * minOppDistWeight;
 
   if (state.config.wallPool === "shared") {
     const sharedRemaining = state.sharedWallsRemaining ?? 0;
-    score += sharedRemaining * 0.5;
-    score += state.walls.length * 0.1;
+    score += sharedRemaining * sharedWallBonusWeight;
+    score += state.walls.length * sharedSpentWeight;
   } else {
-    score += botPlayer.wallsRemaining * 0.1;
+    score += botPlayer.wallsRemaining * wallBonusWeight;
   }
 
   if (state.config.goalCondition === "top") {
@@ -131,10 +140,11 @@ function evaluate(state: GameState, botId: string): number {
       if (p.id === botId) continue;
       const oppDist = getDistanceToGoal(state, p.id);
       const clearLane = getClearLaneDistance(state, p.id);
-      const threat = (state.config.boardSize - oppDist) * clearLane * 0.5;
+      const threat =
+        (state.config.boardSize - oppDist) * clearLane * topClearLaneWeight;
       if (threat > maxThreat) maxThreat = threat;
     }
-    score -= maxThreat;
+    score -= topThreatWeight * maxThreat;
   }
 
   return score;
