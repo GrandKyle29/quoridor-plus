@@ -79,6 +79,26 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 }
 
 // --- 2. Evaluation ---
+// Helper: how many tiles up until the nearest horizontal wall in the player's column?
+function getClearLaneDistance(state: GameState, playerId: string): number {
+  const { boardSize } = state.config;
+  const player = state.players.find((p) => p.id === playerId)!;
+  const { x, y } = player.position;
+
+  let nearestWallY = boardSize;
+  for (const wall of state.walls) {
+    if (wall.orientation !== "horizontal") continue;
+    const wx = wall.coord.x;
+    const wy = wall.coord.y;
+    if (x !== wx && x !== wx + 1) continue;
+    if (wy >= y && wy < nearestWallY) {
+      nearestWallY = wy;
+    }
+  }
+
+  return nearestWallY - y;
+}
+// The actual evaulate function.
 function evaluate(state: GameState, botId: string): number {
   if (state.status === "finished") {
     return state.winner === botId ? 10000 : -10000;
@@ -95,27 +115,31 @@ function evaluate(state: GameState, botId: string): number {
     }
   }
 
-  // The exact heuristic from your previous version
   let score = -botDist + minOppDist * 1.5;
 
-  // NEW: wall valuation depends on mode
   if (state.config.wallPool === "shared") {
-    // In shared mode, every wall the opponent uses is a wall we lose forever.
-    // So the bot should value the shared pool nearly as much as it values
-    // its own path. We also want the bot to be aggressive about *spending*
-    // walls early — so a shrinking pool should make the bot want to use
-    // walls NOW, not save them.
     const sharedRemaining = state.sharedWallsRemaining ?? 0;
-    score += sharedRemaining * 0.5; // High value: walls are precious
-    // Small bonus for having spent walls aggressively (more walls on board = fewer for opponents)
+    score += sharedRemaining * 0.5;
     score += state.walls.length * 0.1;
   } else {
-    // Per-player mode: original behavior, unchanged
     score += botPlayer.wallsRemaining * 0.1;
+  }
+
+  if (state.config.goalCondition === "top") {
+    let maxThreat = 0;
+    for (const p of state.players) {
+      if (p.id === botId) continue;
+      const oppDist = getDistanceToGoal(state, p.id);
+      const clearLane = getClearLaneDistance(state, p.id);
+      const threat = (state.config.boardSize - oppDist) * clearLane * 0.5;
+      if (threat > maxThreat) maxThreat = threat;
+    }
+    score -= maxThreat;
   }
 
   return score;
 }
+
 // --- 3. Move Pruning ---
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
