@@ -36,7 +36,7 @@ export function decodeShareCode(code: string): GameState | null {
 
     const raw = JSON.parse(json);
 
-    if (raw.config.schemaVersion !== 2) {
+    if (raw.config.schemaVersion !== 2 && raw.config.schemaVersion !== 3) {
       throw new Error(
         `This replay uses schema version ${raw.config.schemaVersion}, which is not compatible.`,
       );

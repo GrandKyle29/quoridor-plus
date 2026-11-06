@@ -51,7 +51,7 @@ export function WaitingRoom({
     const playerColors = room.players.map((p: any) => p.color); // <-- Get colors
 
     const config: GameConfig = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       boardSize: room.config?.boardSize || 9,
       minPlayers: 2, // Engine requires at least 2
       maxPlayers: 4, // Max possible, engine will adapt
@@ -351,6 +351,22 @@ export function WaitingRoom({
             Shared wall pool
           </label>
         </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            fontSize: "14px",
+          }}
+        >
+          <input
+            type="checkbox"
+            disabled={!isHost}
+            checked={room.config?.lenientJumps === true}
+            onChange={(e) => updateConfig("lenientJumps", e.target.checked)}
+          />
+          Lenient jumps (diagonals always available)
+        </label>
         <div style={{ marginBottom: "10px" }}>
           <label
             style={{

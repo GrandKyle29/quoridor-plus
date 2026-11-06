@@ -3,7 +3,7 @@ import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
 
 const classicConfig: GameConfig = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   boardSize: 9,
   minPlayers: 2,
   maxPlayers: 4,
