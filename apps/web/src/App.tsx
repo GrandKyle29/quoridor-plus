@@ -25,6 +25,8 @@ export default function App() {
         goalCondition: "opposite-edge",
         startingWalls: 10,
         randomizeSpawns: true,
+        wallPool: "per-player",
+        lenientJumps: false,
       },
     });
 

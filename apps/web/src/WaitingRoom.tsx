@@ -53,16 +53,17 @@ export function WaitingRoom({
     const config: GameConfig = {
       schemaVersion: 3,
       boardSize: room.config?.boardSize || 9,
-      minPlayers: 2, // Engine requires at least 2
-      maxPlayers: 4, // Max possible, engine will adapt
+      minPlayers: 2,
+      maxPlayers: room.max_players || 4,
       startingWalls: room.config?.startingWalls ?? 10,
-      wallPool: "per-player",
+      wallPool: room.config?.wallPool || "per-player",
       goalCondition: room.config?.goalCondition || "opposite-edge",
       allowDiagonalJumps: true,
       mustNotBlockPath: true,
       elimination: false,
       turnOrder: "clockwise",
       randomizeSpawns: room.config?.randomizeSpawns !== false,
+      lenientJumps: room.config?.lenientJumps === true, // <-- ensure this is here
     };
 
     const initialState = createGame(config, playerNames, playerColors); // <-- Pass colors!
@@ -351,22 +352,24 @@ export function WaitingRoom({
             Shared wall pool
           </label>
         </div>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "14px",
-          }}
-        >
-          <input
-            type="checkbox"
-            disabled={!isHost}
-            checked={room.config?.lenientJumps === true}
-            onChange={(e) => updateConfig("lenientJumps", e.target.checked)}
-          />
-          Lenient jumps (diagonals always available)
-        </label>
+        <div style={{ marginBottom: "10px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
+            }}
+          >
+            <input
+              type="checkbox"
+              disabled={!isHost}
+              checked={room.config?.lenientJumps === true}
+              onChange={(e) => updateConfig("lenientJumps", e.target.checked)}
+            />
+            Lenient jumps (diagonals always available)
+          </label>
+        </div>
         <div style={{ marginBottom: "10px" }}>
           <label
             style={{
