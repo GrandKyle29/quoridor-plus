@@ -40,14 +40,17 @@ const DEFAULT_LOCAL_SETUP: LocalSetupState = {
   useWood: false,
 };
 
-export function loadLocalSetup(): LocalSetupState {
+export function loadLocalSetup(
+  overrides?: Partial<LocalSetupState>,
+): LocalSetupState {
   try {
     const raw = localStorage.getItem("quoridor_localSetup");
-    if (!raw) return DEFAULT_LOCAL_SETUP;
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_LOCAL_SETUP, ...parsed };
+    const stored = raw
+      ? { ...DEFAULT_LOCAL_SETUP, ...JSON.parse(raw) }
+      : DEFAULT_LOCAL_SETUP;
+    return { ...stored, ...overrides };
   } catch {
-    return DEFAULT_LOCAL_SETUP;
+    return { ...DEFAULT_LOCAL_SETUP, ...overrides };
   }
 }
 
@@ -55,6 +58,6 @@ export function saveLocalSetup(state: LocalSetupState) {
   try {
     localStorage.setItem("quoridor_localSetup", JSON.stringify(state));
   } catch {
-    // Silently ignore (private mode, storage quota, etc.)
+    // private mode / quota exceeded — silently ignore
   }
 }
