@@ -161,7 +161,6 @@ function checkDiagonals(
   state: GameState,
   over: Coord,
   dx: number,
-  dy: number,
   jumps: Coord[],
   queue: { from: Coord; over: Coord }[],
   visitedHops: Set<string>,
@@ -199,7 +198,6 @@ function checkDiagonals(
     }
   }
 }
-
 function getChainJumps(state: GameState, start: Coord): Coord[] {
   const { boardSize } = state.config;
   const jumps: Coord[] = [];
@@ -231,7 +229,7 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
 
     if (!isOnBoard(behind, boardSize) || isBlockedByWall(state, over, behind)) {
       // Straight jump blocked: only diagonals
-      checkDiagonals(state, over, dx, dy, jumps, queue, visitedHops);
+      checkDiagonals(state, over, dx, jumps, queue, visitedHops);
     } else {
       // Straight jump possible
       const hopKey = `${over.x},${over.y},${behind.x},${behind.y}`;
@@ -249,7 +247,7 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
 
       // Lenient mode: diagonals are ALSO available even when straight works
       if (state.config.lenientJumps) {
-        checkDiagonals(state, over, dx, dy, jumps, queue, visitedHops);
+        checkDiagonals(state, over, dx, jumps, queue, visitedHops);
       }
     }
   }
