@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { supabase } from "./supabase";
 import { createGame } from "@quoridor/engine";
 import type { GameConfig } from "@quoridor/engine";
@@ -23,15 +24,20 @@ export function WaitingRoom({
       .update({ config: newConfig })
       .eq("id", room.id);
   };
-  /*
-  const updateMaxPlayers = async (value: number) => {
-    if (!isHost) return;
-    await supabase
-      .from("rooms")
-      .update({ max_players: value })
-      .eq("id", room.id);
-  };
-*/
+
+  // --- LAYER 2: valid-option gating ---
+  const playerCount = room.players.length;
+  const boardSize = room.config?.boardSize ?? 9;
+  const reachTheTopDisabled = playerCount > boardSize;
+
+  // If the host has selected an invalid combination (e.g., Reach the Top
+  // with 8 players on a 7x7 board), silently switch back to a valid mode.
+  useEffect(() => {
+    if (room.config?.goalCondition === "top" && playerCount > boardSize) {
+      updateConfig("goalCondition", "opposite-edge");
+    }
+  }, [playerCount, boardSize, room.config?.goalCondition]);
+
   const claimColor = async (colorHex: string) => {
     // Check if taken (by someone else)
     if (room.players.some((p: any) => p.color === colorHex && p.id !== myId))
@@ -46,9 +52,23 @@ export function WaitingRoom({
       .update({ players: newPlayers })
       .eq("id", room.id);
   };
+
   const startGame = async () => {
+    // --- LAYER 2: hard guard ---
+    // Even if the UI is bypassed, refuse to start an invalid game.
+    if (
+      room.config?.goalCondition === "top" &&
+      room.players.length > (room.config?.boardSize ?? 9)
+    ) {
+      alert(
+        "Reach the Top cannot be played with this many players on this board size. Switching to Reach Opposite Side.",
+      );
+      await updateConfig("goalCondition", "opposite-edge");
+      return;
+    }
+
     const playerNames = room.players.map((p: any) => p.name);
-    const playerColors = room.players.map((p: any) => p.color); // <-- Get colors
+    const playerColors = room.players.map((p: any) => p.color);
 
     const config: GameConfig = {
       schemaVersion: 3,
@@ -63,10 +83,19 @@ export function WaitingRoom({
       elimination: false,
       turnOrder: "clockwise",
       randomizeSpawns: room.config?.randomizeSpawns !== false,
-      lenientJumps: room.config?.lenientJumps === true, // <-- ensure this is here
+      lenientJumps: room.config?.lenientJumps === true,
     };
 
-    const initialState = createGame(config, playerNames, playerColors); // <-- Pass colors!
+    let initialState;
+    try {
+      initialState = createGame(config, playerNames, playerColors);
+    } catch (err) {
+      console.error("createGame failed:", err);
+      alert(
+        `Failed to start game: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+      return;
+    }
 
     await supabase
       .from("rooms")
@@ -76,6 +105,7 @@ export function WaitingRoom({
       })
       .eq("id", room.id);
   };
+
   const kickPlayer = async (playerIdToKick: string) => {
     if (!isHost) return; // Only host can kick
 
@@ -89,8 +119,8 @@ export function WaitingRoom({
   };
 
   const isPlayerDisconnected = (p: any) => {
-    if (!p.last_ping) return false; // They just joined, not disconnected yet
-    return Date.now() - p.last_ping > 25000; // 15 seconds grace period
+    if (!p.last_ping) return false;
+    return Date.now() - p.last_ping > 25000;
   };
 
   return (
@@ -128,7 +158,6 @@ export function WaitingRoom({
                   position: "relative",
                   padding: "5px",
                   opacity: disconnected ? 0.5 : 1,
-                  // NEW: Allow wrapping and constrain width
                   maxWidth: "280px",
                   marginInline: "auto",
                   wordBreak: "break-all",
@@ -140,7 +169,6 @@ export function WaitingRoom({
                     height: "12px",
                     borderRadius: "50%",
                     backgroundColor: p.color || "#fff",
-                    // NEW: Prevent circle from shrinking
                     flexShrink: 0,
                   }}
                 />
@@ -184,6 +212,7 @@ export function WaitingRoom({
           })}
         </ul>
       </div>
+
       <div
         style={{
           margin: "20px 0",
@@ -231,6 +260,7 @@ export function WaitingRoom({
           })}
         </div>
       </div>
+
       {/* SETTINGS PANEL */}
       <div
         style={{
@@ -246,34 +276,13 @@ export function WaitingRoom({
         <h3 style={{ marginTop: 0 }}>
           Game Settings {!isHost && "(Host Only)"}
         </h3>
-        {/*
-        <div style={{ marginBottom: "10px" }}>
-          <label style={{ display: "block", fontSize: "14px" }}>
-            Lobby Size:
-          </label>
-          <select
-            disabled={!isHost}
-            value={room.max_players}
-            onChange={(e) => updateMaxPlayers(Number(e.target.value))}
-            style={{
-              width: "100%",
-              padding: "8px",
-              color: "black",
-              cursor: isHost ? "pointer" : "not-allowed",
-            }}
-          >
-            <option value={2}>2 Players</option>
-            <option value={4}>4 Players</option>
-          </select>
-        </div>
-*/}
         <div style={{ marginBottom: "10px" }}>
           <label style={{ display: "block", fontSize: "14px" }}>
             Board Size:
           </label>
           <select
             disabled={!isHost}
-            value={room.config?.boardSize || 9}
+            value={boardSize}
             onChange={(e) => updateConfig("boardSize", Number(e.target.value))}
             style={{
               width: "100%",
@@ -305,14 +314,9 @@ export function WaitingRoom({
           >
             <option value="opposite-edge">Reach Opposite Side</option>
             <option value="center">King of the Hill</option>
-            <option
-              value="top"
-              disabled={room.players.length > (room.config?.boardSize ?? 9)}
-            >
+            <option value="top" disabled={reachTheTopDisabled}>
               Reach the Top
-              {room.players.length > (room.config?.boardSize ?? 9)
-                ? " (unavailable)"
-                : ""}
+              {reachTheTopDisabled ? " (unavailable)" : ""}
             </option>
           </select>
         </div>
@@ -337,6 +341,7 @@ export function WaitingRoom({
             }}
           />
         </div>
+
         <div style={{ marginBottom: "10px" }}>
           <label
             style={{
@@ -360,6 +365,7 @@ export function WaitingRoom({
             Shared wall pool
           </label>
         </div>
+
         <div style={{ marginBottom: "10px" }}>
           <label
             style={{
@@ -378,6 +384,7 @@ export function WaitingRoom({
             Lenient jumps (diagonals always available)
           </label>
         </div>
+
         <div style={{ marginBottom: "10px" }}>
           <label
             style={{
