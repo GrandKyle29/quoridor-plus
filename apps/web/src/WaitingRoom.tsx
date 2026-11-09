@@ -29,14 +29,33 @@ export function WaitingRoom({
   const playerCount = room.players.length;
   const boardSize = room.config?.boardSize ?? 9;
   const reachTheTopDisabled = playerCount > boardSize;
-
-  // If the host has selected an invalid combination (e.g., Reach the Top
-  // with 8 players on a 7x7 board), silently switch back to a valid mode.
-  useEffect(() => {
-    if (room.config?.goalCondition === "top" && playerCount > boardSize) {
-      updateConfig("goalCondition", "opposite-edge");
+  const manyPlayers = room.players.length > 4;
+  // Can this game actually be started?
+  const startability = (() => {
+    if (room.players.length < 2) {
+      return { ok: false, reason: "Waiting for at least 2 players..." };
     }
-  }, [playerCount, boardSize, room.config?.goalCondition]);
+    const mode = room.config?.goalCondition ?? "opposite-edge";
+
+    if (mode === "top") {
+      if (room.players.length > boardSize) {
+        return {
+          ok: false,
+          reason: `Reach the Top needs ${room.players.length} tiles on the bottom row, but this board only has ${boardSize}. Reduce players or increase board size.`,
+        };
+      }
+      return { ok: true, reason: "" };
+    }
+
+    // opposite-edge or center
+    if (room.players.length > 4) {
+      return {
+        ok: false,
+        reason: `This mode currently supports up to 4 players. Coming soon: 5+ players. For now, use Reach the Top for ${room.players.length} players.`,
+      };
+    }
+    return { ok: true, reason: "" };
+  })();
 
   const claimColor = async (colorHex: string) => {
     // Check if taken (by someone else)
@@ -301,6 +320,7 @@ export function WaitingRoom({
           <label style={{ display: "block", fontSize: "14px" }}>
             Win Condition:
           </label>
+
           <select
             disabled={!isHost}
             value={room.config?.goalCondition || "opposite-edge"}
@@ -312,11 +332,17 @@ export function WaitingRoom({
               cursor: isHost ? "pointer" : "not-allowed",
             }}
           >
-            <option value="opposite-edge">Reach Opposite Side</option>
-            <option value="center">King of the Hill</option>
+            <option value="opposite-edge" disabled={manyPlayers}>
+              Reach Opposite Side
+              {manyPlayers ? " (max 4 players, coming soon for more)" : ""}
+            </option>
+            <option value="center" disabled={manyPlayers}>
+              King of the Hill
+              {manyPlayers ? " (max 4 players, coming soon for more)" : ""}
+            </option>
             <option value="top" disabled={reachTheTopDisabled}>
               Reach the Top
-              {reachTheTopDisabled ? " (unavailable)" : ""}
+              {reachTheTopDisabled ? " (unavailable for this board size)" : ""}
             </option>
           </select>
         </div>
@@ -408,23 +434,38 @@ export function WaitingRoom({
       </div>
 
       {isHost ? (
-        <button
-          onClick={startGame}
-          disabled={room.players.length < 2}
-          style={{
-            padding: "12px 24px",
-            fontSize: "18px",
-            backgroundColor: room.players.length < 2 ? "#4b5563" : "#4ade80",
-            color: "#1f2937",
-            fontWeight: "bold",
-            border: "none",
-            borderRadius: "4px",
-            cursor: room.players.length < 2 ? "not-allowed" : "pointer",
-            marginBottom: "20px",
-          }}
-        >
-          {room.players.length < 2 ? "Waiting for players..." : "Start Game"}
-        </button>
+        <>
+          <button
+            onClick={startGame}
+            disabled={!startability.ok}
+            style={{
+              padding: "12px 24px",
+              fontSize: "18px",
+              backgroundColor: startability.ok ? "#4ade80" : "#4b5563",
+              color: "#1f2937",
+              fontWeight: "bold",
+              border: "none",
+              borderRadius: "4px",
+              cursor: startability.ok ? "pointer" : "not-allowed",
+              marginBottom: "10px",
+            }}
+          >
+            {startability.ok ? "Start Game" : "Cannot Start"}
+          </button>
+          {!startability.ok && (
+            <p
+              style={{
+                color: "#ef4444",
+                fontSize: "13px",
+                maxWidth: "300px",
+                marginInline: "auto",
+                marginBottom: "20px",
+              }}
+            >
+              {startability.reason}
+            </p>
+          )}
+        </>
       ) : (
         <p style={{ color: "#ccc", marginBottom: "20px" }}>
           Waiting for the host to start the game...
