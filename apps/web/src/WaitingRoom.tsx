@@ -73,6 +73,10 @@ export function WaitingRoom({
   };
 
   const startGame = async () => {
+    console.log("🔵 START GAME CLICKED");
+    console.log("  room.config:", room.config);
+    console.log("  playerCount:", room.players.length);
+    console.log("  startability:", startability);
     // --- LAYER 2: hard guard ---
     // Even if the UI is bypassed, refuse to start an invalid game.
     if (
@@ -109,9 +113,12 @@ export function WaitingRoom({
     try {
       initialState = createGame(config, playerNames, playerColors);
     } catch (err) {
-      console.error("createGame failed:", err);
+      console.error("🚨 createGame threw:", err);
+      console.error("  config was:", config);
+      console.error("  playerNames:", playerNames);
+      console.error("  playerColors:", playerColors);
       alert(
-        `Failed to start game: ${err instanceof Error ? err.message : "Unknown error"}`,
+        `Cannot start game: ${err instanceof Error ? err.message : "Unknown error"}. See console.`,
       );
       return;
     }

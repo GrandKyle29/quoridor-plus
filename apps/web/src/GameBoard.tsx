@@ -72,6 +72,7 @@ export function GameBoard({
     configOverrides,
     botTimeLimit,
     playerColors,
+    !onlineState, // <-- disabled for online games (state comes from onlineState)
   );
 
   const state = onlineState || localGame.state;
