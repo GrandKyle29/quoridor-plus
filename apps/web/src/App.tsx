@@ -27,6 +27,7 @@ export default function App() {
         randomizeSpawns: true,
         wallPool: "per-player",
         lenientJumps: false,
+        maxPlayers: 8,
       },
     });
 
@@ -59,7 +60,7 @@ export default function App() {
       return;
     }
 
-    if (currentPlayers.length >= 4) return alert("Room is full!");
+    if (currentPlayers.length >= 8) return alert("Room is full!");
 
     // --- NEW: Find the first available color ---
     const takenColors = currentPlayers.map((p: any) => p.color);

@@ -98,7 +98,10 @@ export function getStartPositionsRaw(count: number, size: number): Coord[] {
     ];
   throw new Error("Player count must be 2, 3, or 4");
 }
-function getTopRowStartPositions(count: number, boardSize: number): Coord[] {
+export function getTopRowStartPositions(
+  count: number,
+  boardSize: number,
+): Coord[] {
   const y = 0;
   const center = Math.floor(boardSize / 2);
   const clamp = (x: number) => Math.max(0, Math.min(boardSize - 1, x));
@@ -124,7 +127,32 @@ function getTopRowStartPositions(count: number, boardSize: number): Coord[] {
       { x: clamp(center + 3), y },
     ];
   }
-  throw new Error("Top-row mode supports 2-4 players");
+
+  if (count < 2 || count > 8) {
+    throw new Error("Top-row mode supports 2-8 players");
+  }
+
+  // Try gap = 2
+  const gap2Span = (count - 1) * 2;
+  if (gap2Span <= boardSize - 1) {
+    const startX = center - Math.floor(gap2Span / 2);
+    return Array.from({ length: count }, (_, i) => ({
+      x: clamp(startX + i * 2),
+      y,
+    }));
+  }
+
+  // Fall back to gap = 1
+  const gap1Span = count - 1;
+  if (gap1Span <= boardSize - 1) {
+    const startX = center - Math.floor(gap1Span / 2);
+    return Array.from({ length: count }, (_, i) => ({
+      x: clamp(startX + i),
+      y,
+    }));
+  }
+
+  throw new Error(`Cannot place ${count} players on a ${boardSize}-wide row`);
 }
 // Fisher-Yates shuffle for randomizing player order
 function shuffleArray<T>(array: T[]): T[] {

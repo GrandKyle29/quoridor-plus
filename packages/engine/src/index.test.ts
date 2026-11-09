@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
+import { isPlayerGoal, getTopRowStartPositions } from "./game";
 
 const classicConfig: GameConfig = {
   schemaVersion: 3,
@@ -363,5 +364,184 @@ describe("applyMove", () => {
     expect(nextState.status).toBe("finished");
     expect(nextState.winner).toBe("p0"); // Alice's ID
     expect(nextState.turnIndex).toBe(0); // Turn did not advance
+  });
+});
+
+describe("getTopRowStartPositions", () => {
+  // --- 2-4 players preserved (regression) ---
+  it("2 players on 9x9 → [3, 5]", () => {
+    const pos = getTopRowStartPositions(2, 9);
+    expect(pos).toEqual([
+      { x: 3, y: 0 },
+      { x: 5, y: 0 },
+    ]);
+  });
+
+  it("3 players on 9x9 → [2, 4, 6]", () => {
+    const pos = getTopRowStartPositions(3, 9);
+    expect(pos).toEqual([
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+      { x: 6, y: 0 },
+    ]);
+  });
+
+  it("4 players on 9x9 → [1, 3, 5, 7]", () => {
+    const pos = getTopRowStartPositions(4, 9);
+    expect(pos).toEqual([
+      { x: 1, y: 0 },
+      { x: 3, y: 0 },
+      { x: 5, y: 0 },
+      { x: 7, y: 0 },
+    ]);
+  });
+
+  it("4 players on 7x7 → [0, 2, 4, 6]", () => {
+    const pos = getTopRowStartPositions(4, 7);
+    expect(pos).toEqual([
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+      { x: 6, y: 0 },
+    ]);
+  });
+
+  // --- 5-8 players on 9x9 ---
+  it("5 players on 9x9 → [0, 2, 4, 6, 8] (spread)", () => {
+    const pos = getTopRowStartPositions(5, 9);
+    expect(pos.map((p) => p.x)).toEqual([0, 2, 4, 6, 8]);
+  });
+
+  it("6 players on 9x9 → [2, 3, 4, 5, 6, 7] (packed)", () => {
+    const pos = getTopRowStartPositions(6, 9);
+    expect(pos.map((p) => p.x)).toEqual([2, 3, 4, 5, 6, 7]);
+  });
+
+  it("7 players on 9x9 → [1, 2, 3, 4, 5, 6, 7] (packed)", () => {
+    const pos = getTopRowStartPositions(7, 9);
+    expect(pos.map((p) => p.x)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("8 players on 9x9 → [1, 2, 3, 4, 5, 6, 7, 8] (packed)", () => {
+    const pos = getTopRowStartPositions(8, 9);
+    expect(pos.map((p) => p.x)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  // --- 5-8 players on 11x11 ---
+  it("5 players on 11x11 → [1, 3, 5, 7, 9] (spread)", () => {
+    const pos = getTopRowStartPositions(5, 11);
+    expect(pos.map((p) => p.x)).toEqual([1, 3, 5, 7, 9]);
+  });
+
+  it("6 players on 11x11 → [0, 2, 4, 6, 8, 10] (spread)", () => {
+    const pos = getTopRowStartPositions(6, 11);
+    expect(pos.map((p) => p.x)).toEqual([0, 2, 4, 6, 8, 10]);
+  });
+
+  it("7 players on 11x11 → [2, 3, 4, 5, 6, 7, 8] (packed)", () => {
+    const pos = getTopRowStartPositions(7, 11);
+    expect(pos.map((p) => p.x)).toEqual([2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("8 players on 11x11 → [2, 3, 4, 5, 6, 7, 8, 9] (packed)", () => {
+    const pos = getTopRowStartPositions(8, 11);
+    expect(pos.map((p) => p.x)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  // --- 5-7 players on 7x7 (all packed) ---
+  it("5 players on 7x7 → [1, 2, 3, 4, 5] (packed)", () => {
+    const pos = getTopRowStartPositions(5, 7);
+    expect(pos.map((p) => p.x)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("6 players on 7x7 → [1, 2, 3, 4, 5, 6] (packed)", () => {
+    const pos = getTopRowStartPositions(6, 7);
+    expect(pos.map((p) => p.x)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("7 players on 7x7 → [0, 1, 2, 3, 4, 5, 6] (packed, full row)", () => {
+    const pos = getTopRowStartPositions(7, 7);
+    expect(pos.map((p) => p.x)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  // --- Invalid cases ---
+  it("8 players on 7x7 throws", () => {
+    expect(() => getTopRowStartPositions(8, 7)).toThrow();
+  });
+
+  it("9 players on 9x9 throws (out of supported range)", () => {
+    expect(() => getTopRowStartPositions(9, 9)).toThrow();
+  });
+});
+
+describe("createGame — Reach the Top with 5-8 players", () => {
+  const topConfig: GameConfig = {
+    ...classicConfig,
+    goalCondition: "top",
+    randomizeSpawns: false, // so we can predict positions
+    maxPlayers: 8,
+  };
+
+  it("creates a 5-player top-row game correctly", () => {
+    const state = createGame(topConfig, ["P0", "P1", "P2", "P3", "P4"]);
+    expect(state.players.length).toBe(5);
+    const positions = state.players.map((p) => p.position);
+    expect(positions).toEqual([
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+      { x: 6, y: 0 },
+      { x: 8, y: 0 },
+    ]);
+  });
+
+  it("creates an 8-player top-row game on 9x9 correctly", () => {
+    const state = createGame(topConfig, [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7",
+    ]);
+    expect(state.players.length).toBe(8);
+    expect(state.players.map((p) => p.position.x)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+  });
+
+  it("throws for 8 players on 7x7 in top mode", () => {
+    const badConfig = { ...topConfig, boardSize: 7 };
+    expect(() =>
+      createGame(badConfig, ["P0", "P1", "P2", "P3", "P4", "P5", "P6", "P7"]),
+    ).toThrow();
+  });
+
+  it("detects win when any player reaches the top row in 8-player mode", () => {
+    const state = createGame(topConfig, [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7",
+    ]);
+    // Player 0 at (1, 0). Move them to (1, 8) → should win.
+    // Use applyMove repeatedly, but to test the win check directly:
+    const player0 = state.players[0]!;
+    // Manually set position near the goal
+    const testState = {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === 0 ? { ...p, position: { x: 1, y: 8 } } : p,
+      ),
+    };
+    // isPlayerGoal for "top": y === boardSize - 1 (8) → true
+    expect(isPlayerGoal(testState, 0, { x: 1, y: 8 })).toBe(true);
+    expect(isPlayerGoal(testState, 1, { x: 2, y: 0 })).toBe(false);
   });
 });

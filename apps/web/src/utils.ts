@@ -8,8 +8,8 @@ export function getMyPlayerId(): string {
 }
 
 export const COLOR_PALETTE = [
-  { name: "Red", hex: "#ef4444" },
   { name: "Blue", hex: "#3b82f6" },
+  { name: "Red", hex: "#ef4444" },
   { name: "Yellow", hex: "#eab308" },
   { name: "Green", hex: "#22c55e" },
   { name: "Purple", hex: "#a855f7" },
@@ -19,6 +19,8 @@ export const COLOR_PALETTE = [
   { name: "White", hex: "#cccccc" },
 ];
 
+// Derived for rendering: same order, just the hex strings
+export const DEFAULT_COLORS = COLOR_PALETTE.map((c) => c.hex);
 // In utils.ts
 export type LocalSetupState = {
   boardSize: number;

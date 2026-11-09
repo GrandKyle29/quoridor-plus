@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { loadLocalSetup, saveLocalSetup } from "./utils";
 import type { LocalSetupState } from "./utils";
+import { DEFAULT_COLORS } from "./utils";
 
 export function LocalSetup() {
   const navigate = useNavigate();
@@ -45,14 +46,20 @@ export function LocalSetup() {
   ) => {
     setSetup((prev) => ({ ...prev, [key]: value }));
   };
-
+  const playerCount = botCount + 1;
+  const reachTheTopDisabled = playerCount > setup.boardSize;
+  useEffect(() => {
+    if (setup.goalCondition === "top" && botCount + 1 > setup.boardSize) {
+      update("goalCondition", "opposite-edge");
+    }
+  }, [botCount, setup.boardSize, setup.goalCondition]);
   const startGame = () => {
     const playerNames = [name.trim() || "Player"];
     for (let i = 0; i < botCount; i++) {
       playerNames.push(`Bot ${i + 1}`);
     }
 
-    const defaultColors = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
+    //const DEFAULT_COLORS = COLOR_PALETTE;
 
     navigate("/game", {
       state: {
@@ -60,7 +67,7 @@ export function LocalSetup() {
         vsBot: true,
         useWood: setup.useWood,
         botTimeLimit,
-        playerColors: defaultColors.slice(0, playerNames.length),
+        playerColors: DEFAULT_COLORS.slice(0, playerNames.length),
         configOverrides: {
           boardSize: setup.boardSize,
           goalCondition: setup.goalCondition,
@@ -98,6 +105,10 @@ export function LocalSetup() {
           <option value={1}>1 Bot (1v1)</option>
           <option value={2}>2 Bots (1v1v1)</option>
           <option value={3}>3 Bots (1v1v1v1)</option>
+          <option value={4}>4 Bots (5 players)</option>
+          <option value={5}>5 Bots (6 players)</option>
+          <option value={6}>6 Bots (7 players)</option>
+          <option value={7}>7 Bots (8 players)</option>
         </select>
       </div>
 
@@ -123,7 +134,10 @@ export function LocalSetup() {
         >
           <option value="opposite-edge">Reach Opposite Side</option>
           <option value="center">King of the Hill</option>
-          <option value="top">Reach the Top</option>
+          <option value="top" disabled={playerCount > setup.boardSize}>
+            Reach the Top
+            {playerCount > setup.boardSize ? " (unavailable)" : ""}
+          </option>
         </select>
       </div>
 

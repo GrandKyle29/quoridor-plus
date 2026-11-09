@@ -54,7 +54,7 @@ export function WaitingRoom({
       schemaVersion: 3,
       boardSize: room.config?.boardSize || 9,
       minPlayers: 2,
-      maxPlayers: room.max_players || 4,
+      maxPlayers: room.max_players || 8,
       startingWalls: room.config?.startingWalls ?? 10,
       wallPool: room.config?.wallPool || "per-player",
       goalCondition: room.config?.goalCondition || "opposite-edge",
@@ -305,7 +305,15 @@ export function WaitingRoom({
           >
             <option value="opposite-edge">Reach Opposite Side</option>
             <option value="center">King of the Hill</option>
-            <option value="top">Reach the Top</option>
+            <option
+              value="top"
+              disabled={room.players.length > (room.config?.boardSize ?? 9)}
+            >
+              Reach the Top
+              {room.players.length > (room.config?.boardSize ?? 9)
+                ? " (unavailable)"
+                : ""}
+            </option>
           </select>
         </div>
 

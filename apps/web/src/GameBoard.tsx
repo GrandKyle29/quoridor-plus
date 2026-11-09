@@ -5,6 +5,7 @@ import type { GameState, Move, GameConfig } from "@quoridor/engine";
 import "./GameBoard.css";
 import { encodeShareCode } from "./shareCode";
 import { GameResults } from "./GameResults";
+import { DEFAULT_COLORS } from "./utils";
 
 interface GameBoardProps {
   playerNames: string[];
@@ -106,7 +107,7 @@ export function GameBoard({
   useEffect(() => {
     localStorage.setItem("quoridor_showGoalLines", String(showGoalLines));
   }, [showGoalLines]);
-  const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
+  //const DEFAULT_COLORS = COLOR_PALETTE;
 
   // --- DETERMINE LOCAL PLAYER ID ---
   let currentLocalPlayerId = localPlayerId;
@@ -465,46 +466,13 @@ export function GameBoard({
           </div>
           <div
             style={{
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
               gap: "10px",
-              flexWrap: "wrap",
-              alignItems: "center",
+              width: "100%",
+              maxWidth: "560px",
             }}
           >
-            {state.config.wallPool === "shared" && (
-              <div
-                style={{
-                  backgroundColor: "#374151",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "2px solid #eab308",
-                  width: "130px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "#eab308",
-                    fontWeight: "bold",
-                    marginBottom: "4px",
-                  }}
-                >
-                  SHARED POOL
-                </div>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "#fff",
-                  }}
-                >
-                  Walls: {state.sharedWallsRemaining ?? 0}
-                </div>
-              </div>
-            )}
             {state.players.map((p, i) => {
               const disconnected = isDisconnected(p.name);
               return (
@@ -519,10 +487,10 @@ export function GameBoard({
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "2px solid transparent",
                     opacity: disconnected ? 0.5 : 1,
-                    width: "130px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
+                    minWidth: 0, // prevent text overflow from stretching
                   }}
                 >
                   <div
@@ -538,9 +506,7 @@ export function GameBoard({
                         width: "12px",
                         height: "12px",
                         borderRadius: "50%",
-                        backgroundColor:
-                          p.color ||
-                          DEFAULT_COLORS[parseInt(p.id.replace("p", ""))],
+                        backgroundColor: p.color || DEFAULT_COLORS[i] || "#888",
                         flexShrink: 0,
                       }}
                     />
@@ -554,11 +520,9 @@ export function GameBoard({
                       {p.name}
                     </strong>
                   </div>
-                  {state.config.wallPool !== "shared" && (
-                    <div style={{ fontSize: "14px", color: "#ccc" }}>
-                      Walls: {p.wallsRemaining}
-                    </div>
-                  )}
+                  <div style={{ fontSize: "14px", color: "#ccc" }}>
+                    Walls: {p.wallsRemaining}
+                  </div>
                 </div>
               );
             })}
