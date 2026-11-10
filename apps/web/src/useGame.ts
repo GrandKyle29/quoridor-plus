@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { createGame, applyMove, getBestMove } from "@quoridor/engine";
+import { createGame, applyMove } from "@quoridor/engine";
 import type { GameConfig, GameState, Move } from "@quoridor/engine";
 
 const classicConfig: GameConfig = {
