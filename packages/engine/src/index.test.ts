@@ -5,7 +5,7 @@ import { isPlayerGoal, getTopRowStartPositions } from "./game";
 import { getCenterStartPositions } from "./game";
 
 const classicConfig: GameConfig = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   boardSize: 9,
   minPlayers: 2,
   maxPlayers: 4,

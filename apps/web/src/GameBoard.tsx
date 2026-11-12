@@ -27,7 +27,7 @@ interface GameBoardProps {
   isSharingReplay?: boolean;
 }
 
-function getGoalForPlayer(startIndex: number | undefined) {
+/*function getGoalForPlayer(startIndex: number | undefined) {
   const idx = (startIndex ?? 0) % 4;
   switch (idx) {
     case 0:
@@ -41,7 +41,7 @@ function getGoalForPlayer(startIndex: number | undefined) {
     default:
       return null;
   }
-}
+}*/
 
 export function GameBoard({
   playerNames,

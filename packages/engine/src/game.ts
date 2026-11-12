@@ -92,8 +92,8 @@ export function getStartPositionsRaw(count: number, size: number): Coord[] {
   if (count === 3)
     return [
       { x: mid, y: 0 },
-      { x: 0, y: max },
-      { x: max, y: max },
+      { x: mid, y: max },
+      { x: 0, y: mid },
     ];
 
   if (count === 4)

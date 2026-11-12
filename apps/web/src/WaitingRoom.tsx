@@ -29,7 +29,7 @@ export function WaitingRoom({
   const playerCount = room.players.length;
   const boardSize = room.config?.boardSize ?? 9;
   const reachTheTopDisabled = playerCount > boardSize;
-  const manyPlayers = room.players.length > 4;
+  //const manyPlayers = room.players.length > 4;
   // Can this game actually be started?
   const startability = (() => {
     if (room.players.length < 2) {
@@ -82,7 +82,7 @@ export function WaitingRoom({
     const playerColors = room.players.map((p: any) => p.color);
 
     const config: GameConfig = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       boardSize: room.config?.boardSize || 9,
       minPlayers: 2,
       maxPlayers: room.max_players || 8,
