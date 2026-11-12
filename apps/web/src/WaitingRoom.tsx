@@ -36,22 +36,10 @@ export function WaitingRoom({
       return { ok: false, reason: "Waiting for at least 2 players..." };
     }
     const mode = room.config?.goalCondition ?? "opposite-edge";
-
-    if (mode === "top") {
-      if (room.players.length > boardSize) {
-        return {
-          ok: false,
-          reason: `Reach the Top needs ${room.players.length} tiles on the bottom row, but this board only has ${boardSize}. Reduce players or increase board size.`,
-        };
-      }
-      return { ok: true, reason: "" };
-    }
-
-    // opposite-edge or center
-    if (room.players.length > 4) {
+    if (mode === "top" && room.players.length > boardSize) {
       return {
         ok: false,
-        reason: `This mode currently supports up to 4 players. Coming soon: 5+ players. For now, use Reach the Top for ${room.players.length} players.`,
+        reason: `Reach the Top needs ${room.players.length} tiles, but this board has ${boardSize}.`,
       };
     }
     return { ok: true, reason: "" };
@@ -339,14 +327,8 @@ export function WaitingRoom({
               cursor: isHost ? "pointer" : "not-allowed",
             }}
           >
-            <option value="opposite-edge" disabled={manyPlayers}>
-              Reach Opposite Side
-              {manyPlayers ? " (max 4 players, coming soon for more)" : ""}
-            </option>
-            <option value="center" disabled={manyPlayers}>
-              King of the Hill
-              {manyPlayers ? " (max 4 players, coming soon for more)" : ""}
-            </option>
+            <option value="opposite-edge">Reach Opposite Side</option>
+            <option value="center">King of the Hill</option>
             <option value="top" disabled={reachTheTopDisabled}>
               Reach the Top
               {reachTheTopDisabled ? " (unavailable for this board size)" : ""}

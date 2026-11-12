@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
 import { isPlayerGoal, getTopRowStartPositions } from "./game";
+import { getCenterStartPositions } from "./game";
 
 const classicConfig: GameConfig = {
   schemaVersion: 3,
@@ -543,5 +544,188 @@ describe("createGame — Reach the Top with 5-8 players", () => {
     // isPlayerGoal for "top": y === boardSize - 1 (8) → true
     expect(isPlayerGoal(testState, 0, { x: 1, y: 8 })).toBe(true);
     expect(isPlayerGoal(testState, 1, { x: 2, y: 0 })).toBe(false);
+  });
+});
+
+describe("getStartPositionsRaw — opposite-edge 5-8 players", () => {
+  it("5 players on 9x9: p4 shares bottom edge with p0", () => {
+    const pos = getStartPositionsRaw(5, 9);
+    expect(pos).toEqual([
+      { x: 3, y: 0 }, // p0 bottom slot 0
+      { x: 3, y: 8 }, // p1 top slot 0
+      { x: 0, y: 3 }, // p2 left slot 0
+      { x: 8, y: 3 }, // p3 right slot 0
+      { x: 5, y: 0 }, // p4 bottom slot 1
+    ]);
+  });
+
+  it("8 players on 9x9: all slots filled", () => {
+    const pos = getStartPositionsRaw(8, 9);
+    expect(pos).toEqual([
+      { x: 3, y: 0 }, // p0
+      { x: 5, y: 8 }, // p1
+      { x: 0, y: 5 }, // p2
+      { x: 8, y: 3 }, // p3
+      { x: 5, y: 0 }, // p4
+      { x: 3, y: 8 }, // p5
+      { x: 0, y: 3 }, // p6
+      { x: 8, y: 5 }, // p7
+    ]);
+  });
+
+  it("8 players on 7x7", () => {
+    const pos = getStartPositionsRaw(8, 7);
+    expect(pos).toEqual([
+      { x: 2, y: 0 },
+      { x: 2, y: 6 },
+      { x: 0, y: 2 },
+      { x: 6, y: 2 },
+      { x: 4, y: 0 },
+      { x: 4, y: 6 },
+      { x: 0, y: 4 },
+      { x: 6, y: 4 },
+    ]);
+  });
+
+  it("8 players on 11x11", () => {
+    const pos = getStartPositionsRaw(8, 11);
+    expect(pos).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 10 },
+      { x: 0, y: 4 },
+      { x: 10, y: 4 },
+      { x: 6, y: 0 },
+      { x: 6, y: 10 },
+      { x: 0, y: 6 },
+      { x: 10, y: 6 },
+    ]);
+  });
+
+  it("2-4 player behavior unchanged", () => {
+    expect(getStartPositionsRaw(2, 9)).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 8 },
+    ]);
+    expect(getStartPositionsRaw(4, 9)).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 8 },
+      { x: 0, y: 4 },
+      { x: 8, y: 4 },
+    ]);
+  });
+});
+
+describe("isPlayerGoal — opposite-edge with 5-8 players", () => {
+  const topConfig: GameConfig = {
+    ...classicConfig,
+    goalCondition: "opposite-edge",
+    randomizeSpawns: false,
+    maxPlayers: 8,
+  };
+
+  it("p4 (startIndex 4) wins at the top edge", () => {
+    const state = createGame(topConfig, ["P0", "P1", "P2", "P3", "P4"]);
+    expect(isPlayerGoal(state, 4, { x: 5, y: 8 })).toBe(true);
+    expect(isPlayerGoal(state, 4, { x: 5, y: 0 })).toBe(false);
+  });
+
+  it("p7 (startIndex 7) wins at the left edge", () => {
+    const state = createGame(topConfig, [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7",
+    ]);
+    expect(isPlayerGoal(state, 7, { x: 0, y: 5 })).toBe(true);
+    expect(isPlayerGoal(state, 7, { x: 8, y: 5 })).toBe(false);
+  });
+
+  it("2-4 player goal mapping unchanged", () => {
+    const state4 = createGame({ ...topConfig, maxPlayers: 4 }, [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+    ]);
+    // p0 (startIndex 0) → top
+    expect(isPlayerGoal(state4, 0, { x: 4, y: 8 })).toBe(true);
+    // p1 (startIndex 1) → bottom
+    expect(isPlayerGoal(state4, 1, { x: 4, y: 0 })).toBe(true);
+    // p2 (startIndex 2) → right
+    expect(isPlayerGoal(state4, 2, { x: 8, y: 4 })).toBe(true);
+    // p3 (startIndex 3) → left
+    expect(isPlayerGoal(state4, 3, { x: 0, y: 4 })).toBe(true);
+  });
+});
+
+describe("getCenterStartPositions — KotH fairness", () => {
+  it("2-4 players: unchanged from getStartPositionsRaw", () => {
+    expect(getCenterStartPositions(2, 9)).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 8 },
+    ]);
+    expect(getCenterStartPositions(4, 9)).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 8 },
+      { x: 0, y: 4 },
+      { x: 8, y: 4 },
+    ]);
+  });
+
+  it("5 players on 9x9: offset players pulled inward, all 4 tiles from center", () => {
+    const pos = getCenterStartPositions(5, 9);
+    expect(pos).toEqual([
+      { x: 3, y: 1 }, // p0: pulled from (3, 0)
+      { x: 4, y: 8 }, // p1: midpoint, unchanged
+      { x: 0, y: 4 }, // p2: midpoint, unchanged
+      { x: 8, y: 4 }, // p3: midpoint, unchanged
+      { x: 5, y: 1 }, // p4: pulled from (5, 0)
+    ]);
+    const center = { x: 4, y: 4 };
+    for (const p of pos) {
+      const dist = Math.abs(p.x - center.x) + Math.abs(p.y - center.y);
+      expect(dist).toBe(4);
+    }
+  });
+
+  it("8 players on 9x9: all 8 equidistant from center", () => {
+    const pos = getCenterStartPositions(8, 9);
+    expect(pos).toEqual([
+      { x: 3, y: 1 }, // p0
+      { x: 5, y: 7 }, // p1
+      { x: 1, y: 5 }, // p2
+      { x: 7, y: 3 }, // p3
+      { x: 5, y: 1 }, // p4
+      { x: 3, y: 7 }, // p5
+      { x: 1, y: 3 }, // p6
+      { x: 7, y: 5 }, // p7
+    ]);
+    const center = { x: 4, y: 4 };
+    for (const p of pos) {
+      const dist = Math.abs(p.x - center.x) + Math.abs(p.y - center.y);
+      expect(dist).toBe(4);
+    }
+  });
+
+  it("8 players on 7x7: all equidistant from center", () => {
+    const pos = getCenterStartPositions(8, 7);
+    const center = { x: 3, y: 3 };
+    for (const p of pos) {
+      const dist = Math.abs(p.x - center.x) + Math.abs(p.y - center.y);
+      expect(dist).toBe(3);
+    }
+  });
+
+  it("8 players on 11x11: all equidistant from center", () => {
+    const pos = getCenterStartPositions(8, 11);
+    const center = { x: 5, y: 5 };
+    for (const p of pos) {
+      const dist = Math.abs(p.x - center.x) + Math.abs(p.y - center.y);
+      expect(dist).toBe(5);
+    }
   });
 });

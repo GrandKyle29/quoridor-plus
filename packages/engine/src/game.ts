@@ -16,7 +16,9 @@ export function buildInitialState(
   const startPositions =
     config.goalCondition === "top"
       ? getTopRowStartPositions(playerData.length, config.boardSize)
-      : getStartPositionsRaw(playerData.length, config.boardSize);
+      : config.goalCondition === "center"
+        ? getCenterStartPositions(playerData.length, config.boardSize)
+        : getStartPositionsRaw(playerData.length, config.boardSize);
   const startingWalls =
     config.startingWalls === "scaled"
       ? Math.max(3, 10 - playerData.length)
@@ -50,29 +52,32 @@ export function buildInitialState(
   };
 }
 export function getStartPositions(count: number, size: number): Coord[] {
+  return getStartPositionsRaw(count, size);
+}
+export function getCenterStartPositions(count: number, size: number): Coord[] {
+  const positions = getStartPositionsRaw(count, size);
   const mid = Math.floor(size / 2);
   const max = size - 1;
 
-  if (count === 2)
-    return [
-      { x: mid, y: 0 },
-      { x: mid, y: max },
-    ];
-  if (count === 4)
-    return [
-      { x: mid, y: 0 },
-      { x: mid, y: max },
-      { x: 0, y: mid },
-      { x: max, y: mid },
-    ];
-  if (count === 3)
-    return [
-      { x: mid, y: 0 },
-      { x: 0, y: max },
-      { x: max, y: max },
-    ];
+  // For 5-8 player KotH, offset players (not on their edge's midpoint)
+  // start 1 tile further from center. Pull them 1 tile inward.
+  // 2-4 player games have all midpoint starts, so this is a no-op for them.
+  if (count > 4) {
+    for (let i = 0; i < count; i++) {
+      const p = positions[i]!;
+      const isMidpoint =
+        (p.x === mid && (p.y === 0 || p.y === max)) ||
+        (p.y === mid && (p.x === 0 || p.x === max));
+      if (isMidpoint) continue;
 
-  throw new Error("Player count must be 2, 3, or 4");
+      if (p.y === 0) p.y = 1;
+      else if (p.y === max) p.y = max - 1;
+      else if (p.x === 0) p.x = 1;
+      else if (p.x === max) p.x = max - 1;
+    }
+  }
+
+  return positions;
 }
 export function getStartPositionsRaw(count: number, size: number): Coord[] {
   const mid = Math.floor(size / 2);
@@ -83,6 +88,14 @@ export function getStartPositionsRaw(count: number, size: number): Coord[] {
       { x: mid, y: 0 },
       { x: mid, y: max },
     ];
+
+  if (count === 3)
+    return [
+      { x: mid, y: 0 },
+      { x: 0, y: max },
+      { x: max, y: max },
+    ];
+
   if (count === 4)
     return [
       { x: mid, y: 0 },
@@ -90,13 +103,43 @@ export function getStartPositionsRaw(count: number, size: number): Coord[] {
       { x: 0, y: mid },
       { x: max, y: mid },
     ];
-  if (count === 3)
-    return [
-      { x: mid, y: 0 },
-      { x: 0, y: max },
-      { x: max, y: max },
-    ];
-  throw new Error("Player count must be 2, 3, or 4");
+
+  if (count < 5 || count > 8) {
+    throw new Error("Opposite-edge mode supports 2-8 players");
+  }
+
+  const positions: Coord[] = [];
+  for (let i = 0; i < count; i++) {
+    const edge = i % 4; // 0=bottom, 1=top, 2=left, 3=right
+    const slot = Math.floor(i / 4); // 0 or 1
+
+    // Is this edge alone (only one player) for this player count?
+    const alone = count <= 4 + edge;
+
+    if (alone) {
+      // Centered on the edge
+      if (edge === 0) positions.push({ x: mid, y: 0 });
+      else if (edge === 1) positions.push({ x: mid, y: max });
+      else if (edge === 2) positions.push({ x: 0, y: mid });
+      else positions.push({ x: max, y: mid });
+    } else {
+      // Two players on this edge, offset by ±1
+      if (edge === 0) {
+        // Bottom: slot 0 left, slot 1 right
+        positions.push({ x: slot === 0 ? mid - 1 : mid + 1, y: 0 });
+      } else if (edge === 1) {
+        // Top: slot 0 right, slot 1 left
+        positions.push({ x: slot === 0 ? mid + 1 : mid - 1, y: max });
+      } else if (edge === 2) {
+        // Left: slot 0 bottom, slot 1 top
+        positions.push({ x: 0, y: slot === 0 ? mid + 1 : mid - 1 });
+      } else {
+        // Right: slot 0 top, slot 1 bottom
+        positions.push({ x: max, y: slot === 0 ? mid - 1 : mid + 1 });
+      }
+    }
+  }
+  return positions;
 }
 export function getTopRowStartPositions(
   count: number,
@@ -219,11 +262,11 @@ export function isPlayerGoal(
   if (goalCondition === "opposite-edge") {
     const player = state.players[playerIndex];
     if (!player) return false;
-    const startIndex = player.startIndex ?? playerIndex;
-    if (startIndex === 0) return coord.y === boardSize - 1;
-    if (startIndex === 1) return coord.y === 0;
-    if (startIndex === 2) return coord.x === boardSize - 1;
-    if (startIndex === 3) return coord.x === 0;
+    const edge = (player.startIndex ?? playerIndex) % 4;
+    if (edge === 0) return coord.y === boardSize - 1; // started bottom → goal top
+    if (edge === 1) return coord.y === 0; // started top → goal bottom
+    if (edge === 2) return coord.x === boardSize - 1; // started left → goal right
+    if (edge === 3) return coord.x === 0; // started right → goal left
   }
 
   return false;

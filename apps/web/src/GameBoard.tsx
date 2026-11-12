@@ -28,12 +28,8 @@ interface GameBoardProps {
 }
 
 function getGoalForPlayer(startIndex: number | undefined) {
-  // Map startIndex to goal direction
-  // 0: bottom → goal top
-  // 1: top → goal bottom
-  // 2: left → goal right
-  // 3: right → goal left
-  switch (startIndex) {
+  const idx = (startIndex ?? 0) % 4;
+  switch (idx) {
     case 0:
       return "top";
     case 1:
@@ -699,71 +695,98 @@ export function GameBoard({
           {/* Goal line indicators */}
           {state.status !== "finished" &&
             showGoalLines &&
-            state.config.goalCondition === "opposite-edge" && (
-              <>
-                {state.players.map((player) => {
-                  const goal = getGoalForPlayer(player.startIndex);
-                  if (!goal) return null;
-                  const color =
-                    player.color ||
-                    DEFAULT_COLORS[parseInt(player.id.replace("p", ""))];
+            state.config.goalCondition === "opposite-edge" &&
+            (() => {
+              type Edge = "top" | "bottom" | "left" | "right";
+              const edgeToColors: Record<Edge, string[]> = {
+                top: [],
+                bottom: [],
+                left: [],
+                right: [],
+              };
 
-                  if (goal === "top") {
-                    return (
-                      <div
-                        key={`goal-${player.id}`}
-                        className="goal-line horizontal"
-                        style={{
-                          top: 0,
-                          backgroundColor: color,
-                          boxShadow: `0 0 8px ${color}`,
-                        }}
-                      />
-                    );
-                  }
-                  if (goal === "bottom") {
-                    return (
-                      <div
-                        key={`goal-${player.id}`}
-                        className="goal-line horizontal"
-                        style={{
-                          bottom: 0,
-                          backgroundColor: color,
-                          boxShadow: `0 0 8px ${color}`,
-                        }}
-                      />
-                    );
-                  }
-                  if (goal === "left") {
-                    return (
-                      <div
-                        key={`goal-${player.id}`}
-                        className="goal-line vertical"
-                        style={{
-                          left: 0,
-                          backgroundColor: color,
-                          boxShadow: `0 0 8px ${color}`,
-                        }}
-                      />
-                    );
-                  }
-                  if (goal === "right") {
-                    return (
-                      <div
-                        key={`goal-${player.id}`}
-                        className="goal-line vertical"
-                        style={{
-                          right: 0,
-                          backgroundColor: color,
-                          boxShadow: `0 0 8px ${color}`,
-                        }}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </>
-            )}
+              state.players.forEach((player) => {
+                const edge = (player.startIndex ?? 0) % 4;
+                const goal: Edge =
+                  edge === 0
+                    ? "top"
+                    : edge === 1
+                      ? "bottom"
+                      : edge === 2
+                        ? "right"
+                        : "left";
+                const color =
+                  player.color ||
+                  DEFAULT_COLORS[parseInt(player.id.replace("p", ""))] ||
+                  "#888";
+                edgeToColors[goal].push(color);
+              });
+
+              function buildGradient(
+                colors: string[],
+                isVertical: boolean,
+              ): string {
+                if (colors.length === 0) return "transparent";
+                if (colors.length === 1) return colors[0];
+                const stripe = 12;
+                const stops: string[] = [];
+                const total = colors.length * stripe;
+                for (let rep = 0; rep < 20; rep++) {
+                  colors.forEach((c, i) => {
+                    const start = rep * total + i * stripe;
+                    const end = start + stripe;
+                    stops.push(`${c} ${start}px ${end}px`);
+                  });
+                }
+                const angle = isVertical ? "180deg" : "90deg";
+                return `repeating-linear-gradient(${angle}, ${stops.join(", ")})`;
+              }
+
+              return (
+                <>
+                  {edgeToColors.top.length > 0 && (
+                    <div
+                      className="goal-line horizontal"
+                      style={{
+                        top: 0,
+                        background: buildGradient(edgeToColors.top, false),
+                        boxShadow: `0 0 8px ${edgeToColors.top[0]}`,
+                      }}
+                    />
+                  )}
+                  {edgeToColors.bottom.length > 0 && (
+                    <div
+                      className="goal-line horizontal"
+                      style={{
+                        bottom: 0,
+                        background: buildGradient(edgeToColors.bottom, false),
+                        boxShadow: `0 0 8px ${edgeToColors.bottom[0]}`,
+                      }}
+                    />
+                  )}
+                  {edgeToColors.left.length > 0 && (
+                    <div
+                      className="goal-line vertical"
+                      style={{
+                        left: 0,
+                        background: buildGradient(edgeToColors.left, true),
+                        boxShadow: `0 0 8px ${edgeToColors.left[0]}`,
+                      }}
+                    />
+                  )}
+                  {edgeToColors.right.length > 0 && (
+                    <div
+                      className="goal-line vertical"
+                      style={{
+                        right: 0,
+                        background: buildGradient(edgeToColors.right, true),
+                        boxShadow: `0 0 8px ${edgeToColors.right[0]}`,
+                      }}
+                    />
+                  )}
+                </>
+              );
+            })()}
 
           {/* Center goal ring for King of the Hill */}
           {state.status !== "finished" &&

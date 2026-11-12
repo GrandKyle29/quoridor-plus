@@ -136,7 +136,7 @@ export function LocalSetup() {
           <option value="center">King of the Hill</option>
           <option value="top" disabled={reachTheTopDisabled}>
             Reach the Top
-            {playerCount > setup.boardSize ? " (unavailable)" : ""}
+            {reachTheTopDisabled ? " (unavailable for this board size)" : ""}
           </option>
         </select>
       </div>
