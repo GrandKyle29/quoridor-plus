@@ -274,58 +274,27 @@ export function GameBoard({
       }}
     >
       {/* HEADER */}
+      {/* HEADER */}
       {state.status === "finished" ? (
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <h2 style={{ color: "#4ade80" }}>
             Game Over! {state.players.find((p) => p.id === state.winner)?.name}{" "}
             wins!
           </h2>
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              justifyContent: "center",
-              marginTop: "15px",
-              flexWrap: "wrap",
-            }}
-          >
-            {!isOnline && (
-              <>
-                <button
-                  onClick={resetGame}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "16px",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Play Again
-                </button>
-                {onLeave && (
-                  <button
-                    onClick={() => onLeave(state.config)}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "16px",
-                      backgroundColor: "#4b5563",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Back to Setup
-                  </button>
-                )}
-              </>
-            )}
-            {isOnline && (
-              <>
-                {isHost ? (
+
+          {/* Hide action buttons in replay mode */}
+          {!hideTurnHeader && (
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                justifyContent: "center",
+                marginTop: "15px",
+                flexWrap: "wrap",
+              }}
+            >
+              {!isOnline && (
+                <>
                   <button
                     onClick={resetGame}
                     style={{
@@ -338,59 +307,95 @@ export function GameBoard({
                       cursor: "pointer",
                     }}
                   >
-                    Return to Lobby
+                    Play Again
                   </button>
-                ) : (
-                  <button
-                    onClick={() => onLeave && onLeave(state.config)}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "16px",
-                      backgroundColor: "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Leave Game
-                  </button>
-                )}
-              </>
-            )}
+                  {onLeave && (
+                    <button
+                      onClick={() => onLeave(state.config)}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "16px",
+                        backgroundColor: "#4b5563",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Back to Setup
+                    </button>
+                  )}
+                </>
+              )}
+              {isOnline && (
+                <>
+                  {isHost ? (
+                    <button
+                      onClick={resetGame}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "16px",
+                        backgroundColor: "#3b82f6",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Return to Lobby
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onLeave && onLeave(state.config)}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "16px",
+                        backgroundColor: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Leave Game
+                    </button>
+                  )}
+                </>
+              )}
 
-            {(!isOnline || (isOnline && localPlayerId)) && (
-              <button
-                onClick={() => {
-                  if (isOnline && onShareReplay) {
-                    onShareReplay();
-                  } else {
-                    const code = encodeShareCode(state);
-                    const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
-                    navigator.clipboard.writeText(url);
-                    alert("Replay link copied to clipboard!");
-                  }
-                }}
-                disabled={isSharingReplay}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "16px",
-                  backgroundColor: isSharingReplay ? "#888" : "#eab308",
-                  color: "#1f2937",
-                  fontWeight: "bold",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: isSharingReplay ? "not-allowed" : "pointer",
-                }}
-              >
-                {isSharingReplay ? "Loading..." : "Share Replay"}
-              </button>
-            )}
-          </div>
+              {(!isOnline || (isOnline && localPlayerId)) && (
+                <button
+                  onClick={() => {
+                    if (isOnline && onShareReplay) {
+                      onShareReplay();
+                    } else {
+                      const code = encodeShareCode(state);
+                      const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
+                      navigator.clipboard.writeText(url);
+                      alert("Replay link copied to clipboard!");
+                    }
+                  }}
+                  disabled={isSharingReplay}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "16px",
+                    backgroundColor: isSharingReplay ? "#888" : "#eab308",
+                    color: "#1f2937",
+                    fontWeight: "bold",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: isSharingReplay ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isSharingReplay ? "Loading..." : "Share Replay"}
+                </button>
+              )}
+            </div>
+          )}
 
-          {state.status === "finished" && <GameResults state={state} />}
+          <GameResults state={state} />
         </div>
-      ) : hideTurnHeader ? null : (
+      ) : (
         <div
           style={{
             marginBottom: "20px",
@@ -402,91 +407,79 @@ export function GameBoard({
             width: "100%",
           }}
         >
-          <div>
-            {(() => {
-              const currentPlayer = state.players[state.turnIndex];
-              let headerText = "Your Turn";
-              let headerColor = "#4ade80";
+          {/* Left side: Turn indicator and buttons (hidden in replay) */}
+          {!hideTurnHeader && (
+            <div>
+              {(() => {
+                const currentPlayer = state.players[state.turnIndex];
+                let headerText = "Your Turn";
+                let headerColor = "#4ade80";
 
-              if (!isMyTurn && currentPlayer) {
-                if (currentDisconnected) {
-                  headerText = `${currentPlayer.name} disconnected...`;
-                  headerColor = "#ef4444";
-                } else {
-                  headerText = `${currentPlayer.name} is thinking...`;
-                  headerColor = "#ccc";
+                if (!isMyTurn && currentPlayer) {
+                  if (currentDisconnected) {
+                    headerText = `${currentPlayer.name} disconnected...`;
+                    headerColor = "#ef4444";
+                  } else {
+                    headerText = `${currentPlayer.name} is thinking...`;
+                    headerColor = "#ccc";
+                  }
                 }
-              }
 
-              return (
-                <div>
-                  <h2
-                    style={{
-                      margin: "0 0 10px 0",
-                      color: headerColor,
-                      maxWidth: "300px",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      fontSize: "clamp(18px, 5vw, 24px)",
-                    }}
-                  >
-                    {headerText}
-                  </h2>
-                  {canKick && onKickPlayer && (
-                    <button
-                      onClick={() => onKickPlayer(currentPlayer!.name)}
+                return (
+                  <div>
+                    <h2
                       style={{
-                        marginBottom: "10px",
-                        padding: "6px 12px",
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        fontWeight: "bold",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "14px",
+                        margin: "0 0 10px 0",
+                        color: headerColor,
+                        maxWidth: "300px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        fontSize: "clamp(18px, 5vw, 24px)",
                       }}
                     >
-                      Kick {currentPlayer!.name}
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-            <div style={{ display: "flex", gap: "10px" }}>
-              {/* Reset / Settings / Leave buttons stay here */}
-              {(!isOnline || isHost) && (
+                      {headerText}
+                    </h2>
+                    {canKick && onKickPlayer && (
+                      <button
+                        onClick={() => onKickPlayer(currentPlayer!.name)}
+                        style={{
+                          marginBottom: "10px",
+                          padding: "6px 12px",
+                          backgroundColor: "#ef4444",
+                          color: "white",
+                          fontWeight: "bold",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Kick {currentPlayer!.name}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+              <div style={{ display: "flex", gap: "10px" }}>
+                {/* Reset / Settings / Leave buttons stay here */}
+                {(!isOnline || isHost) && (
+                  <button
+                    onClick={resetGame}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reset Game
+                  </button>
+                )}
                 <button
-                  onClick={resetGame}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Reset Game
-                </button>
-              )}
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                style={{
-                  padding: "6px 12px",
-                  backgroundColor: "#4b5563",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Settings
-              </button>
-              {onLeave && (
-                <button
-                  onClick={() => onLeave(state.config)}
+                  onClick={() => setShowSettings(!showSettings)}
                   style={{
                     padding: "6px 12px",
                     backgroundColor: "#4b5563",
@@ -496,11 +489,27 @@ export function GameBoard({
                     cursor: "pointer",
                   }}
                 >
-                  Leave
+                  Settings
                 </button>
-              )}
+                {onLeave && (
+                  <button
+                    onClick={() => onLeave(state.config)}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#4b5563",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Leave
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
           {/* Shared Wall Banner */}
           {state.config.wallPool === "shared" && (
             <div
@@ -543,6 +552,8 @@ export function GameBoard({
               </span>
             </div>
           )}
+
+          {/* Player Cards (ALWAYS visible, even in replays) */}
           <div
             style={{
               display: "grid",
