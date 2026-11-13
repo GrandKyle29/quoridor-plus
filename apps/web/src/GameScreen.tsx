@@ -149,8 +149,16 @@ export function GameScreen() {
     if (!stillInRoom) {
       const timer = setTimeout(async () => {
         try {
-          const nextState = applyMove(room.game_state, { kind: "skip" });
+          const skipMove: Move = { kind: "skip" };
+          const nextState = applyMove(room.game_state, skipMove);
           setRoom({ ...room, game_state: nextState });
+
+          // Also log the skip to the moves table
+          await supabase.from("moves").insert({
+            room_id: roomCode,
+            move_data: skipMove,
+          });
+
           await supabase
             .from("rooms")
             .update({ game_state: nextState })
@@ -158,7 +166,7 @@ export function GameScreen() {
         } catch (e) {
           console.error("Auto-skip failed:", e);
         }
-      }, 1500);
+      }, 0); // Reduced delay for snappy feel
       return () => clearTimeout(timer);
     }
   }, [room, myId, roomCode]);
