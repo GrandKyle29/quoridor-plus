@@ -26,7 +26,7 @@ interface GameBoardProps {
   onShareReplay?: () => void;
   isSharingReplay?: boolean;
   //onForceSkipTurn?: () => void;
-
+  hideTurnHeader?: boolean;
   onKickPlayer?: (playerName: string) => void;
 }
 
@@ -65,6 +65,7 @@ export function GameBoard({
   onShareReplay,
   isSharingReplay = false,
   onKickPlayer,
+  hideTurnHeader = false,
   //onKickPlayer={kickFromGame}
   //onForceSkipTurn,
   //onKickPlayer={kickFromGame}
@@ -389,7 +390,7 @@ export function GameBoard({
 
           {state.status === "finished" && <GameResults state={state} />}
         </div>
-      ) : (
+      ) : hideTurnHeader ? null : (
         <div
           style={{
             marginBottom: "20px",

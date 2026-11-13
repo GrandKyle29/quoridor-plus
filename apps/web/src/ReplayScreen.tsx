@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { applyMove, buildInitialState } from "@quoridor/engine";
 import type { GameState } from "@quoridor/engine";
@@ -29,7 +29,17 @@ export function ReplayScreen() {
       }
     }
   }, [shareCode]);
+  const nonSkipMoveIndices = useMemo(() => {
+    if (!fullGame) return [];
+    const result: number[] = [];
+    fullGame.moveLog.forEach((move, i) => {
+      if (move.kind !== "skip") result.push(i);
+    });
+    return result;
+  }, [fullGame]);
 
+  const totalDisplayMoves = nonSkipMoveIndices.length;
+  const displayStep = currentStep;
   // Build a fresh initial state using the engine's source of truth
   const buildFreshInitialState = (): GameState | null => {
     if (!fullGame) return null;
@@ -47,37 +57,40 @@ export function ReplayScreen() {
   useEffect(() => {
     if (!fullGame) return;
 
+    // How many entries of moveLog do we need to apply to reach "displayStep"?
+    const targetInternal =
+      displayStep === 0 ? 0 : nonSkipMoveIndices[displayStep - 1]! + 1;
+
     if (!replayState) {
       let state = buildFreshInitialState()!;
-      for (let i = 0; i < currentStep; i++) {
+      for (let i = 0; i < targetInternal; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }
       setReplayState(state);
-      setReplayStep(currentStep);
+      setReplayStep(targetInternal);
       return;
     }
 
-    if (currentStep === replayStep) return;
+    if (targetInternal === replayStep) return;
 
-    if (currentStep > replayStep) {
+    if (targetInternal > replayStep) {
       let state = replayState;
-      for (let i = replayStep; i < currentStep; i++) {
+      for (let i = replayStep; i < targetInternal; i++) {
         state = applyMove(state, fullGame.moveLog[i]!);
       }
       setReplayState(state);
-      setReplayStep(currentStep);
+      setReplayStep(targetInternal);
       return;
     }
 
-    if (currentStep < replayStep) {
-      let state = buildFreshInitialState()!;
-      for (let i = 0; i < currentStep; i++) {
-        state = applyMove(state, fullGame.moveLog[i]!);
-      }
-      setReplayState(state);
-      setReplayStep(currentStep);
+    // Backward: rebuild from scratch
+    let state = buildFreshInitialState()!;
+    for (let i = 0; i < targetInternal; i++) {
+      state = applyMove(state, fullGame.moveLog[i]!);
     }
-  }, [fullGame, currentStep, replayState, replayStep]);
+    setReplayState(state);
+    setReplayStep(targetInternal);
+  }, [fullGame, displayStep, nonSkipMoveIndices, replayState, replayStep]);
 
   // Auto-play timer
   useEffect(() => {
@@ -85,7 +98,7 @@ export function ReplayScreen() {
 
     const tick = () => {
       setCurrentStep((step) => {
-        if (step >= fullGame.moveLog.length) {
+        if (step >= totalDisplayMoves) {
           setIsPlaying(false);
           return step;
         }
@@ -106,10 +119,10 @@ export function ReplayScreen() {
 
   // Stop playback if we reach the end manually
   useEffect(() => {
-    if (fullGame && currentStep >= fullGame.moveLog.length && isPlaying) {
+    if (fullGame && currentStep >= totalDisplayMoves && isPlaying) {
       setIsPlaying(false);
     }
-  }, [currentStep, fullGame, isPlaying]);
+  }, [currentStep, fullGame, isPlaying, totalDisplayMoves]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -117,7 +130,7 @@ export function ReplayScreen() {
       if (!fullGame) return;
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        setCurrentStep((s) => Math.min(s + 1, fullGame.moveLog.length));
+        setCurrentStep((s) => Math.min(s + 1, totalDisplayMoves));
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         setCurrentStep((s) => Math.max(s - 1, 0));
@@ -160,7 +173,7 @@ export function ReplayScreen() {
     );
   }
 
-  const maxStep = fullGame.moveLog.length;
+  const maxStep = totalDisplayMoves;
   const atStart = currentStep === 0;
   const atEnd = currentStep === maxStep;
 
@@ -302,6 +315,7 @@ export function ReplayScreen() {
           onlinePlayMove={() => {}}
           isOnline={true}
           localPlayerId={undefined}
+          hideTurnHeader={true}
         />
       )}
 
