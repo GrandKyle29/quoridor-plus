@@ -78,12 +78,24 @@ export function GameScreen() {
           filter: `id=eq.${roomCode}`,
         },
         (payload) => {
-          const bytes = JSON.stringify(payload.new).length;
-          setLastReceivedBytes(bytes);
+          setLastReceivedBytes(JSON.stringify(payload.new).length);
           setRoom(payload.new);
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Channel error:", status, err);
+          // Optionally: force a full refetch
+          supabase
+            .from("rooms")
+            .select("*")
+            .eq("id", roomCode)
+            .single()
+            .then(({ data }) => {
+              if (data) setRoom(data);
+            });
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -141,8 +153,17 @@ export function GameScreen() {
     if (!isHost) return;
 
     try {
-      const nextState = applyMove(room.game_state, { kind: "skip" });
+      const move: Move = { kind: "skip" };
+      const nextState = applyMove(room.game_state, move);
       setRoom({ ...room, game_state: nextState });
+
+      // Add the skip to the moves table
+      await supabase.from("moves").insert({
+        room_id: roomCode,
+        move_data: move,
+      });
+
+      // Update the game state
       await supabase
         .from("rooms")
         .update({ game_state: nextState })
