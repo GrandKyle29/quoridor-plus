@@ -150,12 +150,15 @@ export function GameScreen() {
         try {
           const skipMove: Move = { kind: "skip" };
           const nextState = applyMove(room.game_state, skipMove);
-
           const { data: updatedRows, error: updateErr } = await supabase
             .from("rooms")
             .update({ game_state: nextState })
             .eq("id", roomCode)
-            .eq("game_state->>turnIndex", String(room.game_state.turnIndex))
+            .filter(
+              "game_state->>turnIndex",
+              "eq",
+              String(room.game_state.turnIndex),
+            )
             .select("id");
 
           if (updateErr || !updatedRows || updatedRows.length === 0) {
