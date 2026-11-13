@@ -52,11 +52,20 @@ export function encodeMoves(moves: Move[]): string {
 }
 
 export function decodeMoves(s: string): Move[] {
-  if (s.length % 3 !== 0)
-    throw new Error(`Invalid move string length: ${s.length}`);
   const result: Move[] = [];
-  for (let i = 0; i < s.length; i += 3) {
-    result.push(decodeMove(s.slice(i, i + 3)));
+  let i = 0;
+  while (i < s.length) {
+    const first = s[i]!;
+    if (first === "s") {
+      result.push({ kind: "skip" });
+      i += 1;
+    } else {
+      if (i + 3 > s.length) {
+        throw new Error(`Invalid move string (truncated): ${s.slice(i)}`);
+      }
+      result.push(decodeMove(s.slice(i, i + 3)));
+      i += 3;
+    }
   }
   return result;
 }
