@@ -74,11 +74,12 @@ export function decodeShareCode(code: string): GameState | null {
         const legal = legalMoves(currentState);
         console.error(
           "  Legal moves:",
-          legal.map((m) =>
-            m.kind === "move"
-              ? `move(${m.to.x},${m.to.y})`
-              : `wall(${m.wall.coord.x},${m.wall.coord.y},${m.wall.orientation})`,
-          ),
+          legal.map((m) => {
+            if (m.kind === "move") return `move(${m.to.x},${m.to.y})`;
+            if (m.kind === "wall")
+              return `wall(${m.wall.coord.x},${m.wall.coord.y},${m.wall.orientation})`;
+            return "skip";
+          }),
         );
         throw e;
       }

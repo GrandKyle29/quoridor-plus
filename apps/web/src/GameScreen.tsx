@@ -135,7 +135,22 @@ export function GameScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [roomCode]);
+  // Add this near the top of the component, in the same scope as playMove
+  const forceSkipTurn = async () => {
+    if (!room?.game_state) return;
+    if (!isHost) return;
 
+    try {
+      const nextState = applyMove(room.game_state, { kind: "skip" });
+      setRoom({ ...room, game_state: nextState });
+      await supabase
+        .from("rooms")
+        .update({ game_state: nextState })
+        .eq("id", roomCode);
+    } catch (e) {
+      console.error("Failed to skip turn", e);
+    }
+  };
   // 5. Play Move — insert to moves table + broadcast slim state
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
@@ -313,6 +328,7 @@ export function GameScreen() {
             onLeave={() => leaveRoom(true)}
             isOnline={true}
             onlinePlayers={room.players}
+            onForceSkipTurn={forceSkipTurn} // <-- Add this
             isHost={isHost}
             onShareReplay={handleShareReplay}
             isSharingReplay={isSharingReplay}

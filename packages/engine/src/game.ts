@@ -279,7 +279,16 @@ function checkWin(state: GameState, player: Player): boolean {
 export function applyMove(state: GameState, move: Move): GameState {
   // 1. Is it this player's turn, and is the game active?
   if (state.status !== "active") throw new Error("Game is not active");
-  //2. is the move legal?
+
+  // 2. Handle skip before validation (skips are always legal)
+  if (move.kind === "skip") {
+    const nextState = copyState(state);
+    nextState.moveLog.push(move);
+    nextState.turnIndex = (nextState.turnIndex + 1) % nextState.players.length;
+    return nextState;
+  }
+
+  // 3. Is the move legal?
   const validMoves = legalMoves(state);
   const isValid = validMoves.some((m) => {
     if (m.kind === "move" && move.kind === "move") {
@@ -297,11 +306,11 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   if (!isValid) throw new Error("Illegal move");
 
-  // 3. Create a fresh copy of the state
+  // 4. Create a fresh copy of the state
   const nextState = copyState(state);
   const currentPlayer = nextState.players[nextState.turnIndex]!;
 
-  // 4. Apply the move
+  // 5. Apply the move
   if (move.kind === "move") {
     currentPlayer.position = move.to;
   } else if (move.kind === "wall") {
@@ -314,17 +323,18 @@ export function applyMove(state: GameState, move: Move): GameState {
       currentPlayer.wallsRemaining -= 1;
     }
   }
-  // 5. Log the move (useful for replay/spectators later)
+
+  // 6. Log the move
   nextState.moveLog.push(move);
 
-  // 6. Did this move win the game?
+  // 7. Did this move win the game?
   if (checkWin(nextState, currentPlayer)) {
     nextState.status = "finished";
     nextState.winner = currentPlayer.id;
-    return nextState; // Game over, don't advance turn
+    return nextState;
   }
 
-  // 7. Advance the turn to the next player (clockwise)
+  // 8. Advance the turn
   nextState.turnIndex = (nextState.turnIndex + 1) % nextState.players.length;
 
   return nextState;

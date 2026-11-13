@@ -25,6 +25,7 @@ interface GameBoardProps {
   playerColors?: string[];
   onShareReplay?: () => void;
   isSharingReplay?: boolean;
+  onForceSkipTurn?: () => void;
 }
 
 /*function getGoalForPlayer(startIndex: number | undefined) {
@@ -61,6 +62,7 @@ export function GameBoard({
   playerColors,
   onShareReplay,
   isSharingReplay = false,
+  onForceSkipTurn,
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -399,6 +401,45 @@ export function GameBoard({
                   headerColor = "#ccc";
                 }
               }
+              {
+                (() => {
+                  const currentPlayer = state.players[state.turnIndex];
+                  const currentDisconnected = currentPlayer
+                    ? isDisconnected(currentPlayer.name)
+                    : false;
+
+                  // Show the skip button only if:
+                  // 1. We are online
+                  // 2. We are the host
+                  // 3. The current player is disconnected
+                  if (
+                    isOnline &&
+                    isHost &&
+                    currentDisconnected &&
+                    onForceSkipTurn
+                  ) {
+                    return (
+                      <button
+                        onClick={onForceSkipTurn}
+                        style={{
+                          marginTop: "10px",
+                          padding: "6px 12px",
+                          backgroundColor: "#eab308",
+                          color: "#1f2937",
+                          fontWeight: "bold",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Skip {currentPlayer?.name}'s Turn
+                      </button>
+                    );
+                  }
+                  return null;
+                })();
+              }
               return (
                 <h2
                   style={{
@@ -461,6 +502,48 @@ export function GameBoard({
               )}
             </div>
           </div>
+          {/* Shared Wall Banner */}
+          {state.config.wallPool === "shared" && (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "560px",
+                backgroundColor: "#374151",
+                padding: "10px 16px",
+                borderRadius: "6px",
+                borderLeft: "4px solid #eab308",
+                marginBottom: "10px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                boxSizing: "border-box",
+              }}
+            >
+              <span
+                style={{
+                  color: "#eab308",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                SHARED WALL POOL
+              </span>
+              <span
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  color:
+                    state.sharedWallsRemaining &&
+                    state.sharedWallsRemaining <= 3
+                      ? "#ef4444"
+                      : "white",
+                }}
+              >
+                Walls: {state.sharedWallsRemaining ?? 0}
+              </span>
+            </div>
+          )}
           <div
             style={{
               display: "grid",
@@ -487,7 +570,7 @@ export function GameBoard({
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
-                    minWidth: 0, // prevent text overflow from stretching
+                    minWidth: 0,
                   }}
                 >
                   <div
@@ -517,9 +600,11 @@ export function GameBoard({
                       {p.name}
                     </strong>
                   </div>
-                  <div style={{ fontSize: "14px", color: "#ccc" }}>
-                    Walls: {p.wallsRemaining}
-                  </div>
+                  {state.config.wallPool !== "shared" && (
+                    <div style={{ fontSize: "14px", color: "#ccc" }}>
+                      Walls: {p.wallsRemaining}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -904,7 +989,8 @@ export function GameBoard({
       </div>
 
       {/* CONFIRM BAR */}
-      {pendingMove && (
+
+      {pendingMove && pendingMove.kind !== "skip" && (
         <div
           style={{
             position: "fixed",

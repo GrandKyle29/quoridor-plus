@@ -21,4 +21,7 @@ export type Wall = {
   placedBy?: string; // NEW: Who placed it (e.g., "p0")
 };
 
-export type Move = { kind: "move"; to: Coord } | { kind: "wall"; wall: Wall };
+export type Move =
+  | { kind: "move"; to: Coord }
+  | { kind: "wall"; wall: Wall }
+  | { kind: "skip" }; // <-- NEW;

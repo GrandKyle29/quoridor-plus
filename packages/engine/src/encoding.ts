@@ -21,10 +21,13 @@ export function encodeMove(move: Move): string {
     const prefix = move.wall.orientation === "horizontal" ? "h" : "v";
     return `${prefix}${coordToChar(move.wall.coord.x)}${coordToChar(move.wall.coord.y)}`;
   }
+  if (move.kind === "skip") return "s";
   throw new Error("Unknown move kind");
 }
 
 export function decodeMove(s: string): Move {
+  if (s === "s") return { kind: "skip" };
+
   if (s.length !== 3) throw new Error(`Invalid move string: ${s}`);
   const kind = s[0]!;
   const x = charToCoord(s[1]!);
@@ -37,7 +40,10 @@ export function decodeMove(s: string): Move {
       wall: { coord: { x, y }, orientation: "horizontal" },
     };
   if (kind === "v")
-    return { kind: "wall", wall: { coord: { x, y }, orientation: "vertical" } };
+    return {
+      kind: "wall",
+      wall: { coord: { x, y }, orientation: "vertical" },
+    };
   throw new Error(`Unknown move kind: ${kind}`);
 }
 
