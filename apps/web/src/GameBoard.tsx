@@ -241,7 +241,10 @@ export function GameBoard({
   const isDisconnected = (playerName: string) => {
     if (!onlinePlayers) return false;
     const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
-    if (!onlinePlayer || !onlinePlayer.last_ping) return false;
+    // If they aren't in the lobby at all, they've been removed (left/kicked)
+    if (!onlinePlayer) return true; 
+    // If they just joined, we don't know yet
+    if (!onlinePlayer.last_ping) return false; 
     return Date.now() - onlinePlayer.last_ping > 25000;
   };
 
@@ -384,7 +387,7 @@ export function GameBoard({
             width: "100%",
           }}
         >
-          <div>
+                  <div>
             {(() => {
               const currentPlayer = state.players[state.turnIndex];
               const currentDisconnected = currentPlayer
@@ -401,62 +404,45 @@ export function GameBoard({
                   headerColor = "#ccc";
                 }
               }
-              {
-                (() => {
-                  const currentPlayer = state.players[state.turnIndex];
-                  const currentDisconnected = currentPlayer
-                    ? isDisconnected(currentPlayer.name)
-                    : false;
-
-                  // Show the skip button only if:
-                  // 1. We are online
-                  // 2. We are the host
-                  // 3. The current player is disconnected
-                  if (
-                    isOnline &&
-                    isHost &&
-                    currentDisconnected &&
-                    onForceSkipTurn
-                  ) {
-                    return (
-                      <button
-                        onClick={onForceSkipTurn}
-                        style={{
-                          marginTop: "10px",
-                          padding: "6px 12px",
-                          backgroundColor: "#eab308",
-                          color: "#1f2937",
-                          fontWeight: "bold",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                        }}
-                      >
-                        Skip {currentPlayer?.name}'s Turn
-                      </button>
-                    );
-                  }
-                  return null;
-                })();
-              }
               return (
-                <h2
-                  style={{
-                    margin: "0 0 10px 0",
-                    color: headerColor,
-                    maxWidth: "300px",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    fontSize: "clamp(18px, 5vw, 24px)",
-                  }}
-                >
-                  {headerText}
-                </h2>
+                <div>
+                  <h2
+                    style={{
+                      margin: "0 0 10px 0",
+                      color: headerColor,
+                      maxWidth: "300px",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      fontSize: "clamp(18px, 5vw, 24px)",
+                    }}
+                  >
+                    {headerText}
+                  </h2>
+                  {/* THE SKIP BUTTON */}
+                  {isOnline && isHost && currentDisconnected && onForceSkipTurn && (
+                    <button
+                      onClick={onForceSkipTurn}
+                      style={{
+                        marginBottom: "10px",
+                        padding: "6px 12px",
+                        backgroundColor: "#eab308",
+                        color: "#1f2937",
+                        fontWeight: "bold",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Skip {currentPlayer?.name}'s Turn
+                    </button>
+                  )}
+                </div>
               );
             })()}
             <div style={{ display: "flex", gap: "10px" }}>
+              {/* Reset / Settings / Leave buttons stay here */}
               {(!isOnline || isHost) && (
                 <button
                   onClick={resetGame}
