@@ -21,9 +21,13 @@ export function GameScreen() {
   const [lastReceivedBytes, setLastReceivedBytes] = useState(0);
   const lastHeartbeatTime = useRef<number>(Date.now());
   const [heartbeatAge, setHeartbeatAge] = useState<number | null>(null);
-  const [isSharingReplay, setIsSharingReplay] = useState(false);
 
-  // 1. Handle Local Game (No Room Code)
+  // Determine host status at the top so all functions can reference it
+  const isHost = room?.host_id === myId;
+
+  // ==========================================
+  // 1. LOCAL GAME (No room code)
+  // ==========================================
   if (!roomCode) {
     const playerNames = location.state?.playerNames;
     const vsBot = location.state?.vsBot || false;
@@ -31,6 +35,7 @@ export function GameScreen() {
       navigate("/");
       return null;
     }
+
     return (
       <GameBoard
         playerNames={playerNames}
@@ -49,7 +54,9 @@ export function GameScreen() {
     );
   }
 
-  // 2. Online Game Setup — fetch + subscribe (no accumulation)
+  // ==========================================
+  // 2. ONLINE GAME: Subscriptions & Heartbeat
+  // ==========================================
   useEffect(() => {
     if (!roomCode) return;
 
@@ -82,45 +89,16 @@ export function GameScreen() {
           setRoom(payload.new);
         },
       )
-      .subscribe((status, err) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("Channel error:", status, err);
-          // Optionally: force a full refetch
-          supabase
-            .from("rooms")
-            .select("*")
-            .eq("id", roomCode)
-            .single()
-            .then(({ data }) => {
-              if (data) setRoom(data);
-            });
-        }
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [roomCode]);
 
-  // 3. Leave Room
-  const leaveRoom = async (isExplicitLeave = true) => {
-    if (!room || !roomCode) return;
-    const newPlayers = room.players.filter((p: any) => p.id !== myId);
-    if (newPlayers.length === 0) {
-      await supabase.from("rooms").delete().eq("id", roomCode);
-    } else {
-      const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
-      await supabase
-        .from("rooms")
-        .update({ players: newPlayers, host_id: newHostId })
-        .eq("id", roomCode);
-    }
-    if (isExplicitLeave) navigate("/");
-  };
-
-  // 4. Heartbeat
   useEffect(() => {
     if (!roomCode) return;
+
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("rooms")
@@ -128,15 +106,19 @@ export function GameScreen() {
         .eq("id", roomCode)
         .single();
       if (!data || !data.players || !Array.isArray(data.players)) return;
+
       const updatedPlayers = data.players.map((p: any) =>
         p.id === myId ? { ...p, last_ping: Date.now() } : p,
       );
+
       await supabase
         .from("rooms")
         .update({ players: updatedPlayers })
         .eq("id", roomCode);
+
       lastHeartbeatTime.current = Date.now();
     }, 5000);
+
     return () => clearInterval(interval);
   }, [roomCode, myId]);
 
@@ -147,54 +129,93 @@ export function GameScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [roomCode]);
-  // Add this near the top of the component, in the same scope as playMove
-  const forceSkipTurn = async () => {
+
+  // ==========================================
+  // 3. AUTO-SKIP LOGIC
+  // ==========================================
+  useEffect(() => {
     if (!room?.game_state) return;
-    if (!isHost) return;
+    if (room.status !== "playing") return;
+    if (room.host_id !== myId) return; // Only the host triggers the auto-skip
 
-    try {
-      const move: Move = { kind: "skip" };
-      const nextState = applyMove(room.game_state, move);
-      setRoom({ ...room, game_state: nextState });
+    const currentPlayer = room.game_state.players[room.game_state.turnIndex];
+    if (!currentPlayer) return;
 
-      // Add the skip to the moves table
-      await supabase.from("moves").insert({
-        room_id: roomCode,
-        move_data: move,
-      });
+    // Check if the current player is still in the live lobby list
+    const stillInRoom = room.players.some(
+      (p: any) => p.name === currentPlayer.name,
+    );
 
-      // Update the game state
+    if (!stillInRoom) {
+      const timer = setTimeout(async () => {
+        try {
+          const nextState = applyMove(room.game_state, { kind: "skip" });
+          setRoom({ ...room, game_state: nextState });
+          await supabase
+            .from("rooms")
+            .update({ game_state: nextState })
+            .eq("id", roomCode);
+        } catch (e) {
+          console.error("Auto-skip failed:", e);
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [room, myId, roomCode]);
+
+  // ==========================================
+  // 4. GAME ACTIONS (Leave, Kick, Play)
+  // ==========================================
+  const leaveRoom = async (isExplicitLeave = true) => {
+    if (!room || !roomCode) return;
+
+    const newPlayers = room.players.filter((p: any) => p.id !== myId);
+
+    if (newPlayers.length === 0) {
+      await supabase.from("rooms").delete().eq("id", roomCode);
+    } else {
+      const newHostId = room.host_id === myId ? newPlayers[0].id : room.host_id;
       await supabase
         .from("rooms")
-        .update({ game_state: nextState })
+        .update({ players: newPlayers, host_id: newHostId })
         .eq("id", roomCode);
-    } catch (e) {
-      console.error("Failed to skip turn", e);
+    }
+
+    if (isExplicitLeave) navigate("/");
+  };
+
+  const kickFromGame = async (playerName: string) => {
+    if (!isHost || !room) return;
+
+    const newPlayers = room.players.filter((p: any) => p.name !== playerName);
+    await supabase
+      .from("rooms")
+      .update({ players: newPlayers })
+      .eq("id", roomCode);
+
+    // Defensive: if we somehow kicked the host, promote next
+    if (room.host_id === myId && newPlayers.length > 0) {
+      await supabase
+        .from("rooms")
+        .update({ host_id: newPlayers[0].id })
+        .eq("id", roomCode);
     }
   };
-  // 5. Play Move — insert to moves table + broadcast slim state
+
   const playMove = async (move: Move) => {
     if (!room?.game_state) return;
     try {
       const nextState = applyMove(room.game_state, move);
-      const broadcastState = {
-        ...nextState,
-        moveLog: [],
-        lastMove: move,
-      };
+      const broadcastState = { ...nextState, moveLog: [] };
 
-      const bytes = JSON.stringify(broadcastState).length;
-      setLastSentBytes(bytes);
+      setLastSentBytes(JSON.stringify(broadcastState).length);
       setRoom({ ...room, game_state: broadcastState });
 
-      // Insert — DB assigns id automatically, no move_number needed
-      const { error: moveError } = await supabase
-        .from("moves")
-        .insert({ room_id: roomCode, move_data: move });
-
-      if (moveError) {
-        console.error("🚨 Failed to save move:", moveError);
-      }
+      // Save move to DB for replays
+      await supabase.from("moves").insert({
+        room_id: roomCode,
+        move_data: move,
+      });
 
       await supabase
         .from("rooms")
@@ -211,14 +232,11 @@ export function GameScreen() {
       .from("rooms")
       .update({ status: "lobby", game_state: null })
       .eq("id", roomCode);
-    // Delete moves from the finished game
     await supabase.from("moves").delete().eq("room_id", roomCode);
   };
 
-  // 6. Share Replay — query moves table
   const handleShareReplay = async () => {
     if (!room?.game_state) return;
-    setIsSharingReplay(true);
 
     const { data: moves, error } = await supabase
       .from("moves")
@@ -226,45 +244,39 @@ export function GameScreen() {
       .eq("room_id", roomCode)
       .order("id", { ascending: true });
 
-    setIsSharingReplay(false);
-
     if (error || !moves) {
       alert("Failed to load moves for replay");
       return;
     }
 
     const fullMoveLog = moves.map((m: any) => m.move_data);
-    console.log(`📤 Sharing replay with ${fullMoveLog.length} moves`);
-
-    // Sanity check: if the game was played turn-by-turn with no skips,
-    // the move count should match the state's turn progression
-    if (fullMoveLog.length === 0) {
-      alert("No moves recorded for this game");
-      return;
-    }
-
     const stateWithLog = { ...room.game_state, moveLog: fullMoveLog };
+
     const code = encodeShareCode(stateWithLog);
     const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(url);
     alert(`Replay link copied! (${fullMoveLog.length} moves)`);
   };
 
-  if (loading)
+  // ==========================================
+  // 5. RENDER ROUTING
+  // ==========================================
+  if (loading) {
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
         Loading...
       </div>
     );
-  if (!room)
+  }
+  if (!room) {
     return (
       <div style={{ color: "white", textAlign: "center", marginTop: "100px" }}>
         Room closed! <button onClick={() => navigate("/")}>Back</button>
       </div>
     );
+  }
 
   const me = room.players.find((p: any) => p.id === myId);
-  const isHost = room.host_id === myId;
 
   if (!me && room.status === "playing") {
     return (
@@ -349,15 +361,15 @@ export function GameScreen() {
             onLeave={() => leaveRoom(true)}
             isOnline={true}
             onlinePlayers={room.players}
-            onForceSkipTurn={forceSkipTurn} // <-- Add this
             isHost={isHost}
+            onKickPlayer={kickFromGame}
             onShareReplay={handleShareReplay}
-            isSharingReplay={isSharingReplay}
+            isSharingReplay={false}
           />
         </div>
         <DebugOverlay
           roomCode={roomCode}
-          moveLogLength={(room.game_state as any).moveCount || 0}
+          moveLogLength={room?.game_state?.moveLog?.length ?? 0}
           lastSentBytes={lastSentBytes}
           lastReceivedBytes={lastReceivedBytes}
           heartbeatAge={heartbeatAge}

@@ -25,7 +25,9 @@ interface GameBoardProps {
   playerColors?: string[];
   onShareReplay?: () => void;
   isSharingReplay?: boolean;
-  onForceSkipTurn?: () => void;
+  //onForceSkipTurn?: () => void;
+
+  onKickPlayer?: (playerName: string) => void;
 }
 
 /*function getGoalForPlayer(startIndex: number | undefined) {
@@ -62,7 +64,10 @@ export function GameBoard({
   playerColors,
   onShareReplay,
   isSharingReplay = false,
-  onForceSkipTurn,
+  onKickPlayer,
+  //onKickPlayer={kickFromGame}
+  //onForceSkipTurn,
+  //onKickPlayer={kickFromGame}
 }: GameBoardProps) {
   const localGame = useGame(
     playerNames,
@@ -77,6 +82,25 @@ export function GameBoard({
   const playMove = onlinePlayMove || localGame.playMove;
   const resetGame = onlineResetGame || localGame.resetGame;
 
+  const isDisconnected = (playerName: string) => {
+    if (!onlinePlayers) return false;
+    const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
+    // If they aren't in the room at all, they've left or been kicked
+    if (!onlinePlayer) return true;
+    // If they just joined, don't mark as disconnected yet
+    if (!onlinePlayer.last_ping) return false;
+    return Date.now() - onlinePlayer.last_ping > 25000;
+  };
+  const currentTurnPlayer = state?.players[state?.turnIndex ?? 0];
+  const currentDisconnected = currentTurnPlayer
+    ? isDisconnected(currentTurnPlayer.name)
+    : false;
+  const currentStillInRoom =
+    !currentTurnPlayer || !onlinePlayers
+      ? true
+      : onlinePlayers.some((p: any) => p.name === currentTurnPlayer.name);
+  const canKick =
+    isOnline && isHost && currentDisconnected && currentStillInRoom;
   const [showSettings, setShowSettings] = useState(false);
 
   // --- MOVE CONFIRMATION ---
@@ -238,16 +262,6 @@ export function GameBoard({
     }
   };
 
-  const isDisconnected = (playerName: string) => {
-    if (!onlinePlayers) return false;
-    const onlinePlayer = onlinePlayers.find((p: any) => p.name === playerName);
-    // If they aren't in the lobby at all, they've been removed (left/kicked)
-    if (!onlinePlayer) return true; 
-    // If they just joined, we don't know yet
-    if (!onlinePlayer.last_ping) return false; 
-    return Date.now() - onlinePlayer.last_ping > 25000;
-  };
-
   return (
     <div
       style={{
@@ -387,14 +401,12 @@ export function GameBoard({
             width: "100%",
           }}
         >
-                  <div>
+          <div>
             {(() => {
               const currentPlayer = state.players[state.turnIndex];
-              const currentDisconnected = currentPlayer
-                ? isDisconnected(currentPlayer.name)
-                : false;
               let headerText = "Your Turn";
               let headerColor = "#4ade80";
+
               if (!isMyTurn && currentPlayer) {
                 if (currentDisconnected) {
                   headerText = `${currentPlayer.name} disconnected...`;
@@ -404,6 +416,7 @@ export function GameBoard({
                   headerColor = "#ccc";
                 }
               }
+
               return (
                 <div>
                   <h2
@@ -419,15 +432,14 @@ export function GameBoard({
                   >
                     {headerText}
                   </h2>
-                  {/* THE SKIP BUTTON */}
-                  {isOnline && isHost && currentDisconnected && onForceSkipTurn && (
+                  {canKick && onKickPlayer && (
                     <button
-                      onClick={onForceSkipTurn}
+                      onClick={() => onKickPlayer(currentPlayer!.name)}
                       style={{
                         marginBottom: "10px",
                         padding: "6px 12px",
-                        backgroundColor: "#eab308",
-                        color: "#1f2937",
+                        backgroundColor: "#ef4444",
+                        color: "white",
                         fontWeight: "bold",
                         border: "none",
                         borderRadius: "4px",
@@ -435,7 +447,7 @@ export function GameBoard({
                         fontSize: "14px",
                       }}
                     >
-                      Skip {currentPlayer?.name}'s Turn
+                      Kick {currentPlayer!.name}
                     </button>
                   )}
                 </div>
@@ -541,6 +553,9 @@ export function GameBoard({
           >
             {state.players.map((p, i) => {
               const disconnected = isDisconnected(p.name);
+              const leftRoom = onlinePlayers
+                ? !onlinePlayers.some((op: any) => op.name === p.name)
+                : false;
               return (
                 <div
                   key={p.id}
@@ -552,7 +567,8 @@ export function GameBoard({
                       state.turnIndex === i
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "2px solid transparent",
-                    opacity: disconnected ? 0.5 : 1,
+                    opacity: disconnected || leftRoom ? 0.5 : 1,
+                    textDecoration: leftRoom ? "line-through" : "none",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
