@@ -136,12 +136,11 @@ export function GameScreen() {
   useEffect(() => {
     if (!room?.game_state) return;
     if (room.status !== "playing") return;
-    if (room.host_id !== myId) return; // Only the host triggers the auto-skip
+    if (room.host_id !== myId) return;
 
     const currentPlayer = room.game_state.players[room.game_state.turnIndex];
     if (!currentPlayer) return;
 
-    // Check if the current player is still in the live lobby list
     const stillInRoom = room.players.some(
       (p: any) => p.name === currentPlayer.name,
     );
@@ -151,22 +150,32 @@ export function GameScreen() {
         try {
           const skipMove: Move = { kind: "skip" };
           const nextState = applyMove(room.game_state, skipMove);
-          setRoom({ ...room, game_state: nextState });
 
-          // Also log the skip to the moves table
+          const { data: updatedRows, error: updateErr } = await supabase
+            .from("rooms")
+            .update({ game_state: nextState })
+            .eq("id", roomCode)
+            .eq("game_state->>turnIndex", String(room.game_state.turnIndex))
+            .select("id");
+
+          if (updateErr || !updatedRows || updatedRows.length === 0) {
+            console.log(
+              "Skip aborted: turn already advanced by another client.",
+            );
+            return;
+          }
+
           await supabase.from("moves").insert({
             room_id: roomCode,
             move_data: skipMove,
           });
 
-          await supabase
-            .from("rooms")
-            .update({ game_state: nextState })
-            .eq("id", roomCode);
+          setRoom({ ...room, game_state: nextState });
         } catch (e) {
           console.error("Auto-skip failed:", e);
         }
-      }, 0); // Reduced delay for snappy feel
+      }, 200);
+
       return () => clearTimeout(timer);
     }
   }, [room, myId, roomCode]);
