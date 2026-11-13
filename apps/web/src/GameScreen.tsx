@@ -162,16 +162,20 @@ export function GameScreen() {
             .select("id");
 
           if (updateErr || !updatedRows || updatedRows.length === 0) {
-            console.log(
-              "Skip aborted: turn already advanced by another client.",
+            console.warn(
+              "Skip aborted (turn advanced elsewhere):",
+              updateErr,
+              updatedRows?.length,
             );
             return;
           }
 
+          console.log("Skip applied. Inserting move.");
           await supabase.from("moves").insert({
             room_id: roomCode,
             move_data: skipMove,
           });
+          console.log("Skip move inserted successfully.");
 
           setRoom({ ...room, game_state: nextState });
         } catch (e) {

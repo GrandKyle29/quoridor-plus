@@ -59,7 +59,9 @@ export function ReplayScreen() {
 
     // How many entries of moveLog do we need to apply to reach "displayStep"?
     const targetInternal =
-      displayStep === 0 ? 0 : nonSkipMoveIndices[displayStep - 1]! + 1;
+      displayStep === totalDisplayMoves
+        ? fullGame.moveLog.length
+        : nonSkipMoveIndices[displayStep]!;
 
     if (!replayState) {
       let state = buildFreshInitialState()!;
