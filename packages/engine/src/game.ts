@@ -276,7 +276,11 @@ function checkWin(state: GameState, player: Player): boolean {
   const playerIndex = state.players.findIndex((p) => p.id === player.id);
   return isPlayerGoal(state, playerIndex, player.position);
 }
-export function applyMove(state: GameState, move: Move): GameState {
+export function applyMove(
+  state: GameState,
+  move: Move,
+  skipValidation = false,
+): GameState {
   // 1. Is it this player's turn, and is the game active?
   if (state.status !== "active") throw new Error("Game is not active");
 
@@ -288,23 +292,24 @@ export function applyMove(state: GameState, move: Move): GameState {
     return nextState;
   }
 
-  // 3. Is the move legal?
-  const validMoves = legalMoves(state);
-  const isValid = validMoves.some((m) => {
-    if (m.kind === "move" && move.kind === "move") {
-      return m.to.x === move.to.x && m.to.y === move.to.y;
-    }
-    if (m.kind === "wall" && move.kind === "wall") {
-      return (
-        m.wall.coord.x === move.wall.coord.x &&
-        m.wall.coord.y === move.wall.coord.y &&
-        m.wall.orientation === move.wall.orientation
-      );
-    }
-    return false;
-  });
-
-  if (!isValid) throw new Error("Illegal move");
+  // 3. Is the move legal?  // ONLY validate if skipValidation is false
+  if (!skipValidation) {
+    const validMoves = legalMoves(state);
+    const isValid = validMoves.some((m) => {
+      if (m.kind === "move" && move.kind === "move") {
+        return m.to.x === move.to.x && m.to.y === move.to.y;
+      }
+      if (m.kind === "wall" && move.kind === "wall") {
+        return (
+          m.wall.coord.x === move.wall.coord.x &&
+          m.wall.coord.y === move.wall.coord.y &&
+          m.wall.orientation === move.wall.orientation
+        );
+      }
+      return false;
+    });
+    if (!isValid) throw new Error("Illegal move");
+  }
 
   // 4. Create a fresh copy of the state
   const nextState = copyState(state);

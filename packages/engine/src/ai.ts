@@ -17,7 +17,6 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 
   while (queue.length > 0) {
     const { coord, dist } = queue.shift()!;
-
     if (isPlayerGoal(state, playerIndex, coord)) return dist;
 
     const dirs = [
@@ -29,7 +28,6 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
 
     for (const d of dirs) {
       const next = { x: coord.x + d.dx, y: coord.y + d.dy };
-
       if (
         next.x < 0 ||
         next.x >= boardSize ||
@@ -74,39 +72,131 @@ export function getDistanceToGoal(state: GameState, playerId: string): number {
       queue.push({ coord: next, dist: dist + 1 });
     }
   }
-
   return 999;
 }
 
 // --- 2. Evaluation ---
-// --- WEIGHTS ---
-const botDistWeight = 1; // How much each tile away is worth (bot)
-const minOppDistWeight = 1.5; // How much each tile away is worth (opponent)
-const wallBonusWeight = 0.1; // How much each wall the bot owns is worth
-const topThreatWeight = 0.3; // How much the bot reacts to the max threat
-const sharedWallBonusWeight = 0.0; // How many points Each wall left in the shared pool is worth
-const sharedSpentWeight = 0.1; // How many points Each wall placed by the bot is worth
-const topClearLaneWeight = 0.5; // How much open lanes amplify a threat
-// ----------------
-//helper: How far is each player from closest horizontal wall above?
+const botDistWeight = 1;
+const minOppDistWeight = 1.5;
+const wallBonusWeight = 0.1;
+const topThreatWeight = 0.3;
+const sharedWallBonusWeight = 0.0;
+const sharedSpentWeight = 0.1;
+const topClearLaneWeight = 0.5;
+
 function getClearLaneDistance(state: GameState, playerId: string): number {
   const { boardSize } = state.config;
   const player = state.players.find((p) => p.id === playerId)!;
   const { x, y } = player.position;
-
   let nearestWallY = boardSize;
   for (const wall of state.walls) {
     if (wall.orientation !== "horizontal") continue;
     const wx = wall.coord.x;
     const wy = wall.coord.y;
     if (x !== wx && x !== wx + 1) continue;
-    if (wy >= y && wy < nearestWallY) {
-      nearestWallY = wy;
-    }
+    if (wy >= y && wy < nearestWallY) nearestWallY = wy;
   }
-
   return nearestWallY - y;
 }
+
+// FAST trap check: Doesn't use legalMoves.
+// Just checks if the player can win via a normal move OR a chain jump in this exact state.
+function canOpponentWinFast(state: GameState, playerId: string): boolean {
+  const playerIndex = state.players.findIndex((p) => p.id === playerId);
+  if (playerIndex === -1) return false;
+
+  const p = state.players[playerIndex]!;
+  const { boardSize, goalCondition } = state.config;
+  const { x, y } = p.position;
+
+  const isGoal = (cx: number, cy: number) => {
+    if (goalCondition === "center") {
+      const mid = Math.floor(boardSize / 2);
+      return cx === mid && cy === mid;
+    }
+    if (goalCondition === "top") return cy === boardSize - 1;
+    const edge = (p.startIndex ?? playerIndex) % 4;
+    if (edge === 0) return cy === boardSize - 1;
+    if (edge === 1) return cy === 0;
+    if (edge === 2) return cx === boardSize - 1;
+    if (edge === 3) return cx === 0;
+    return false;
+  };
+
+  const dirs = [
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 },
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+  ];
+
+  for (const dir of dirs) {
+    let cx = x,
+      cy = y,
+      jumped = false;
+    while (true) {
+      cx += dir.dx;
+      cy += dir.dy;
+      if (cx < 0 || cx >= boardSize || cy < 0 || cy >= boardSize) break;
+
+      // Check for wall between previous and current
+      let blocked = false;
+      const prevX = cx - dir.dx;
+      const prevY = cy - dir.dy;
+      for (const wall of state.walls) {
+        const { x: wx, y: wy } = wall.coord;
+        if (
+          wall.orientation === "horizontal" &&
+          cx === prevX &&
+          cx >= wx &&
+          cx <= wx + 1
+        ) {
+          const wallY = wy + 1;
+          if (
+            (prevY === wallY && cy === wallY - 1) ||
+            (prevY === wallY - 1 && cy === wallY)
+          )
+            blocked = true;
+        } else if (
+          wall.orientation === "vertical" &&
+          cy === prevY &&
+          cy >= wy &&
+          cy <= wy + 1
+        ) {
+          const wallX = wx + 1;
+          if (
+            (prevX === wallX && cx === wallX - 1) ||
+            (prevX === wallX - 1 && cx === wallX)
+          )
+            blocked = true;
+        }
+      }
+      if (blocked) break;
+
+      const occupant = state.players.find(
+        (op) =>
+          op.id !== playerId && op.position.x === cx && op.position.y === cy,
+      );
+      if (occupant) {
+        jumped = true;
+      } else if (jumped) {
+        if (isGoal(cx, cy)) return true;
+        break;
+      } else {
+        if (isGoal(cx, cy)) return true;
+        break;
+      }
+    }
+  }
+  return false;
+}
+
+function canCurrentPlayerWinFast(state: GameState): boolean {
+  const currentPlayer = state.players[state.turnIndex];
+  if (!currentPlayer) return false;
+  return canOpponentWinFast(state, currentPlayer.id);
+}
+
 //the actual evaluation function.
 function evaluate(state: GameState, botId: string): number {
   if (state.status === "finished") {
@@ -146,18 +236,16 @@ function evaluate(state: GameState, botId: string): number {
     }
     score -= topThreatWeight * maxThreat;
   }
-  // DEBUG: only log every ~10 evals to avoid console spam
-  /*if (Math.random() < 0.01) {
-    console.log("🤖 eval", {
-      bot: botId,
-      finalScore: score,
-      botDist,
-      minOppDist,
-      baseScore: -botDist * botDistWeight + minOppDist * minOppDistWeight,
-      wallBonus: wallBonusWeight,
-      topThreatWeight,
-    });
-  }*/
+
+  // FAST Panic: Only panic if the player acting *now* is 1 move away.
+  // We use getDistanceToGoal instead of the slow legalMoves.
+  const currentOpp = state.players[state.turnIndex];
+  if (currentOpp && currentOpp.id !== botId) {
+    if (getDistanceToGoal(state, currentOpp.id) <= 1) {
+      score -= 500;
+    }
+  }
+
   return score;
 }
 
@@ -165,7 +253,6 @@ function evaluate(state: GameState, botId: string): number {
 function getPrunedMoves(state: GameState): Move[] {
   const allMoves = legalMoves(state);
   const pawnMoves = allMoves.filter((m) => m.kind === "move");
-
   const wallMoves = allMoves.filter((m) => {
     if (m.kind !== "wall") return false;
     return state.players.some((p) => {
@@ -174,11 +261,10 @@ function getPrunedMoves(state: GameState): Move[] {
       return dx <= 3 && dy <= 3;
     });
   });
-
   return [...pawnMoves, ...wallMoves];
 }
 
-// --- 4. The Minimax function with timer ---
+// --- 4. Minimax ---
 function minimax(
   state: GameState,
   depth: number,
@@ -189,21 +275,15 @@ function minimax(
   startTime: number,
   timeLimit: number,
 ): number {
-  // Time check
-  if (Date.now() - startTime > timeLimit) {
-    return evaluate(state, botId);
-  }
-
-  if (depth === 0 || state.status === "finished") {
-    return evaluate(state, botId);
-  }
+  if (Date.now() - startTime > timeLimit) return evaluate(state, botId);
+  if (depth === 0 || state.status === "finished") return evaluate(state, botId);
 
   const moves = getPrunedMoves(state);
 
   if (isMaximizing) {
     let maxEval = -Infinity;
     for (const move of moves) {
-      const nextState = applyMove(state, move);
+      const nextState = applyMove(state, move, true);
       const evalScore = minimax(
         nextState,
         depth - 1,
@@ -222,7 +302,7 @@ function minimax(
   } else {
     let minEval = Infinity;
     for (const move of moves) {
-      const nextState = applyMove(state, move);
+      const nextState = applyMove(state, move, true);
       const evalScore = minimax(
         nextState,
         depth - 1,
@@ -242,19 +322,12 @@ function minimax(
 }
 
 // --- 5. Main Entry Point ---
-// --- Delta heuristic for move ordering ---
-// For a wall placement, computes:
-//   wallScore = 1.5 * (ΔOppDist) - 1.0 * (ΔMyDist)
-// where Δ is (distance after) - (distance before).
-// For pawn moves, returns the raw distance delta (simple).
 function evaluateMoveDelta(
   state: GameState,
   move: Move,
   botId: string,
 ): number {
-  //const currentTurnPlayer = state.players[state.turnIndex]!;
   const botDistBefore = getDistanceToGoal(state, botId);
-
   let minOppDistBefore = 999;
   for (const p of state.players) {
     if (p.id !== botId) {
@@ -263,10 +336,8 @@ function evaluateMoveDelta(
     }
   }
 
-  // Simulate the move
-  const nextState = applyMove(state, move);
+  const nextState = applyMove(state, move, true);
   const botDistAfter = getDistanceToGoal(nextState, botId);
-
   let minOppDistAfter = 999;
   for (const p of nextState.players) {
     if (p.id !== botId) {
@@ -278,28 +349,73 @@ function evaluateMoveDelta(
   const deltaOpp = minOppDistAfter - minOppDistBefore;
   const deltaMy = botDistAfter - botDistBefore;
 
-  if (move.kind === "wall") {
-    return 1.5 * deltaOpp - 1.0 * deltaMy;
-  }
-  // Pawn move: just reward reducing my own distance
+  if (move.kind === "wall") return 1.5 * deltaOpp - 1.0 * deltaMy;
   return -deltaMy;
 }
 
-// --- Modified getBestMove to use delta for move ordering ---
 export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   const botId = state.players[state.turnIndex]!.id;
   const startTime = Date.now();
-
   const moves = getPrunedMoves(state);
 
-  // Use the delta heuristic to sort moves (best first for Alpha-Beta pruning)
+  // 1. INSTANT WIN CHECK
+  for (const move of moves) {
+    if (move.kind === "move") {
+      const nextState = applyMove(state, move, true);
+      if (nextState.status === "finished" && nextState.winner === botId)
+        return move;
+    }
+  }
+
+  // 2. THREAT SCAN (Only run slow checks if someone is actually 1 move away)
+  const nextPlayerIndex = (state.turnIndex + 1) % state.players.length;
+  const nextPlayer = state.players[nextPlayerIndex];
+  let threatExists = false;
+  let nextPlayerThreat = false;
+
+  for (const p of state.players) {
+    if (p.id !== botId) {
+      if (getDistanceToGoal(state, p.id) <= 2) threatExists = true;
+      if (p.id === nextPlayer?.id && getDistanceToGoal(state, p.id) <= 2)
+        nextPlayerThreat = true;
+    }
+  }
+
+  // 3. INSTANT BLOCK CHECK (Only if the next player is a threat)
+  if (nextPlayerThreat) {
+    const blockingMoves = moves.filter((move) => {
+      const nextState = applyMove(state, move, true);
+      return !canOpponentWinFast(nextState, nextPlayer.id);
+    });
+    if (blockingMoves.length > 0) {
+      const scoredBlocks = blockingMoves.map((move) => ({
+        move,
+        deltaScore: evaluateMoveDelta(state, move, botId),
+      }));
+      scoredBlocks.sort((a, b) => b.deltaScore - a.deltaScore);
+      return scoredBlocks[0]!.move;
+    }
+  }
+
+  // 4. MINIMAX
   const scoredMoves = moves.map((move) => ({
     move,
     deltaScore: evaluateMoveDelta(state, move, botId),
   }));
   scoredMoves.sort((a, b) => b.deltaScore - a.deltaScore);
 
-  let bestMove = scoredMoves[0]!.move;
+  let topMoves = scoredMoves;
+
+  // Only apply the safe-move filter if someone is close to winning.
+  if (threatExists) {
+    topMoves = scoredMoves.slice(0, 15).filter(({ move }) => {
+      const nextState = applyMove(state, move, true);
+      return !canCurrentPlayerWinFast(nextState);
+    });
+    if (topMoves.length === 0) topMoves = scoredMoves.slice(0, 15);
+  }
+
+  let bestMove = topMoves[0]!.move;
 
   for (let depth = 1; depth <= 6; depth++) {
     let currentBestMove = bestMove;
@@ -308,13 +424,13 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
     const beta = Infinity;
     let timedOut = false;
 
-    for (const { move } of scoredMoves) {
+    for (const { move } of topMoves) {
       if (Date.now() - startTime > timeLimit) {
         timedOut = true;
         break;
       }
 
-      const nextState = applyMove(state, move);
+      const nextState = applyMove(state, move, true);
       const score = minimax(
         nextState,
         depth - 1,
