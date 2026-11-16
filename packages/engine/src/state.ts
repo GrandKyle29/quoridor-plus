@@ -10,4 +10,6 @@ export type GameState = {
   status: "lobby" | "active" | "finished";
   winner: PlayerId | null;
   sharedWallsRemaining?: number; // <-- ADD this, only used when wallPool === "shared"
+  sharedWallsPerTeam?: { A: number; B: number }; // <-- ADD
+  createdAt?: string; // <-- NEW: ISO timestamp set at game creation
 };

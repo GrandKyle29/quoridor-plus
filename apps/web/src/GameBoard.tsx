@@ -28,6 +28,7 @@ interface GameBoardProps {
   //onForceSkipTurn?: () => void;
   hideTurnHeader?: boolean;
   onKickPlayer?: (playerName: string) => void;
+  createdAt?: string; // <-- NEW (optional)
 }
 
 /*function getGoalForPlayer(startIndex: number | undefined) {
@@ -66,6 +67,7 @@ export function GameBoard({
   isSharingReplay = false,
   onKickPlayer,
   hideTurnHeader = false,
+  createdAt, // <-- NEW
   //onKickPlayer={kickFromGame}
   //onForceSkipTurn,
   //onKickPlayer={kickFromGame}
@@ -132,7 +134,13 @@ export function GameBoard({
     localStorage.setItem("quoridor_showGoalLines", String(showGoalLines));
   }, [showGoalLines]);
   //const DEFAULT_COLORS = COLOR_PALETTE;
-
+  const hexToRgba = (hex: string, alpha: number) => {
+    const clean = hex.replace("#", "");
+    const r = parseInt(clean.substring(0, 2), 16);
+    const g = parseInt(clean.substring(2, 4), 16);
+    const b = parseInt(clean.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
   // --- DETERMINE LOCAL PLAYER ID ---
   let currentLocalPlayerId = localPlayerId;
   if (vsBot && myLocalName && state) {
@@ -184,7 +192,26 @@ export function GameBoard({
     }
     prevStatus.current = state.status;
   }, [state]);
-
+  // Team colors are derived from the first player (in turn order) of each team.
+  // This makes team identity stable and avoids conflicts with player colors.
+  const teamColors = (() => {
+    const result: { A?: string; B?: string } = {};
+    if (!state.config.teams) return result;
+    for (const player of state.players) {
+      const team = state.config.teams?.[player.id];
+      const color =
+        player.color ||
+        DEFAULT_COLORS[parseInt(player.id.replace("p", ""))] ||
+        "#888";
+      if (team === "A" && !result.A) {
+        result.A = color;
+      } else if (team === "B" && !result.B) {
+        result.B = color;
+      }
+      if (result.A && result.B) break;
+    }
+    return result as { A?: string; B?: string };
+  })();
   // --- DIAGNOSTIC GUARDS ---
   if (!state) return null;
 
@@ -279,8 +306,22 @@ export function GameBoard({
       {state.status === "finished" ? (
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <h2 style={{ color: "#4ade80" }}>
-            Game Over! {state.players.find((p) => p.id === state.winner)?.name}{" "}
-            wins!
+            {(() => {
+              const winner = state.players.find((p) => p.id === state.winner);
+              const teams = state.config.teams;
+
+              if (!teams || !winner) {
+                return `Game Over! ${winner?.name ?? "Someone"} wins!`;
+              }
+
+              // Team mode
+              const winnerTeam = teams[winner.id];
+              const teammates = state.players
+                .filter((p) => teams[p.id] === winnerTeam)
+                .map((p) => p.name);
+
+              return `Game Over! Team ${winnerTeam} wins! (${teammates.join(", ")})`;
+            })()}
           </h2>
 
           {/* Hide action buttons in replay mode */}
@@ -535,6 +576,7 @@ export function GameBoard({
                 padding: "10px 16px",
                 borderRadius: "6px",
                 borderLeft: "4px solid #eab308",
+                marginBottom: "10px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -556,14 +598,128 @@ export function GameBoard({
                   fontSize: "20px",
                   fontWeight: "bold",
                   color:
-                    state.sharedWallsRemaining &&
-                    state.sharedWallsRemaining <= 3
+                    (state.sharedWallsRemaining ?? 0) <= 3
                       ? "#ef4444"
                       : "white",
                 }}
               >
-                Walls: {state.sharedWallsRemaining ?? 0}
+                {state.sharedWallsRemaining ?? 0}
               </span>
+            </div>
+          )}
+
+          {state.config.wallPool === "team" && state.sharedWallsPerTeam && (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "560px",
+                backgroundColor: "#374151",
+                padding: "10px 16px",
+                borderRadius: "6px",
+                marginBottom: "10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "6px",
+                boxSizing: "border-box",
+                borderLeft: "4px solid #eab308",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#eab308",
+                  fontWeight: "bold",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                WALLS
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  gap: "16px",
+                }}
+              >
+                {/* Team A: Dot + Name + Count grouped together */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flex: 1,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: teamColors.A,
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: teamColors.A,
+                      fontWeight: "bold",
+                      fontSize: "14px",
+                    }}
+                  >
+                    TEAM A
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      color:
+                        state.sharedWallsPerTeam.A <= 3 ? "#ef4444" : "white",
+                    }}
+                  >
+                    {state.sharedWallsPerTeam.A}
+                  </span>
+                </div>
+
+                {/* Team B: Dot + Name + Count grouped together */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flex: 1,
+                    justifyContent: "flex-end", // Aligns the group to the right
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: teamColors.B,
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: teamColors.B,
+                      fontWeight: "bold",
+                      fontSize: "14px",
+                    }}
+                  >
+                    TEAM B
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      color:
+                        state.sharedWallsPerTeam.B <= 3 ? "#ef4444" : "white",
+                    }}
+                  >
+                    {state.sharedWallsPerTeam.B}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -582,17 +738,36 @@ export function GameBoard({
               const leftRoom = onlinePlayers
                 ? !onlinePlayers.some((op: any) => op.name === p.name)
                 : false;
+              const team = state.config.teams?.[p.id]; // ← fixed
+              /*const teamRing =
+                team === "A"
+                  ? teamColors.A
+                  : team === "B"
+                    ? teamColors.B
+                    : undefined;*/
+              const teamBg =
+                team === "A" && teamColors.A
+                  ? hexToRgba(teamColors.A, 0.5)
+                  : team === "B" && teamColors.B
+                    ? hexToRgba(teamColors.B, 0.5)
+                    : "#374151";
+              const isFinishedInTeamAllMode =
+                !!state.config.teams &&
+                state.config.teamWinCondition === "all" &&
+                p.finished === true;
+
               return (
                 <div
                   key={p.id}
                   style={{
-                    backgroundColor: "#374151",
+                    backgroundColor: teamBg,
                     padding: "10px",
                     borderRadius: "6px",
-                    border:
+                    outline:
                       state.turnIndex === i
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
-                        : "2px solid transparent",
+                        : "none",
+                    outlineOffset: "-2px",
                     opacity: disconnected || leftRoom ? 0.5 : 1,
                     textDecoration: leftRoom ? "line-through" : "none",
                     display: "flex",
@@ -626,11 +801,24 @@ export function GameBoard({
                       }}
                     >
                       {p.name}
+                      {isFinishedInTeamAllMode && (
+                        <span style={{ color: "#4ade80", marginLeft: "4px" }}>
+                          ✓
+                        </span>
+                      )}
                     </strong>
                   </div>
-                  {state.config.wallPool !== "shared" && (
-                    <div style={{ fontSize: "14px", color: "#ccc" }}>
-                      Walls: {p.wallsRemaining}
+
+                  {state.config.wallPool === "per-player" && (
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: isFinishedInTeamAllMode ? "#4ade80" : "#ccc",
+                      }}
+                    >
+                      {isFinishedInTeamAllMode
+                        ? "Finished!"
+                        : `Walls: ${p.wallsRemaining}`}
                     </div>
                   )}
                 </div>
@@ -664,11 +852,12 @@ export function GameBoard({
               border: "1px solid #4b5563",
               zIndex: 100,
               textAlign: "left",
-              width: "300px",
+              width: "320px",
               maxWidth: "90vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
             }}
           >
-            {/* Close button */}
             <button
               onClick={() => setShowSettings(false)}
               style={{
@@ -694,46 +883,91 @@ export function GameBoard({
               ×
             </button>
 
-            <h3 style={{ marginTop: 0 }}>Game Settings</h3>
-            <p>
-              <strong>Board Size:</strong> {state.config.boardSize}x
-              {state.config.boardSize}
-            </p>
-            <p>
-              <strong>Goal:</strong>{" "}
-              {state.config.goalCondition === "center"
-                ? "King of the Hill"
-                : "Reach Opposite Edge"}
-            </p>
-            <p>
-              <strong>Walls:</strong> {state.config.startingWalls} per player
-            </p>
+            <h3 style={{ marginTop: 0 }}>
+              {hideTurnHeader ? "Game Details" : "Game Settings"}
+            </h3>
 
+            {/* --- GAME CONFIGURATION (read-only) --- */}
+            <div style={{ fontSize: "14px", lineHeight: "1.8" }}>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Board Size:</strong> {state.config.boardSize}x
+                {state.config.boardSize}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Goal:</strong>{" "}
+                {state.config.goalCondition === "center"
+                  ? "King of the Hill"
+                  : state.config.goalCondition === "top"
+                    ? "Reach the Top"
+                    : "Reach Opposite Edge"}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Players:</strong> {state.players.length}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Teams:</strong>{" "}
+                {state.config.teams
+                  ? `Yes (${state.config.teamWinCondition === "any" ? "First to finish" : "All must finish"})`
+                  : "No"}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Walls:</strong> {state.config.startingWalls}{" "}
+                {state.config.teams ? "per team" : "per player"}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Wall Pool:</strong>{" "}
+                {state.config.wallPool === "per-player" && "Per Player"}
+                {state.config.wallPool === "shared" &&
+                  (state.config.teams
+                    ? "Shared (Both Teams)"
+                    : "Shared (All Players)")}
+                {state.config.wallPool === "team" && "Shared (Per Team)"}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Lenient Jumps:</strong>{" "}
+                {state.config.lenientJumps ? "Yes" : "No"}
+              </p>
+              <p style={{ margin: "0 0 8px 0" }}>
+                <strong>Randomize Spawns:</strong>{" "}
+                {state.config.randomizeSpawns !== false ? "Yes" : "No"}
+              </p>
+              {(state.createdAt ?? createdAt) && (
+                <p style={{ margin: "0 0 8px 0" }}>
+                  <strong>Date:</strong>{" "}
+                  {new Date((state.createdAt ?? createdAt)!).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {/* --- USER PREFERENCES --- */}
             <hr style={{ borderColor: "#4b5563", margin: "15px 0" }} />
 
+            {!hideTurnHeader && (
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  marginBottom: "10px",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={confirmMoves}
+                  onChange={(e) => setConfirmMoves(e.target.checked)}
+                />
+                Confirm moves before playing
+              </label>
+            )}
+
             <label
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
                 cursor: "pointer",
-                marginBottom: "15px",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={confirmMoves}
-                onChange={(e) => setConfirmMoves(e.target.checked)}
-              />
-              Confirm moves before playing
-            </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                cursor: "pointer",
-                marginBottom: "15px",
+                marginBottom: hideTurnHeader ? "0" : "10px",
               }}
             >
               <input
@@ -743,8 +977,10 @@ export function GameBoard({
               />
               Show goal indicators
             </label>
-            <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-              {(!isOnline || isHost) && (
+
+            {/* --- RESTART (live game only) --- */}
+            {!hideTurnHeader && (!isOnline || isHost) && (
+              <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
                 <button
                   onClick={() => {
                     setShowSettings(false);
@@ -762,8 +998,8 @@ export function GameBoard({
                 >
                   Restart Game
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -809,6 +1045,32 @@ export function GameBoard({
           {state.status !== "finished" &&
             showGoalLines &&
             state.config.goalCondition === "opposite-edge" &&
+            state.config.teams && (
+              <>
+                {/* Team B's goal: bottom edge (they come from top) */}
+                <div
+                  className="goal-line horizontal"
+                  style={{
+                    top: 0,
+                    backgroundColor: teamColors.A ?? "#3b82f6",
+                    boxShadow: `0 0 8px ${teamColors.A ?? "#3b82f6"}`,
+                  }}
+                />
+                <div
+                  className="goal-line horizontal"
+                  style={{
+                    bottom: 0,
+                    backgroundColor: teamColors.B ?? "#ef4444",
+                    boxShadow: `0 0 8px ${teamColors.B ?? "#ef4444"}`,
+                  }}
+                />
+              </>
+            )}
+
+          {state.status !== "finished" &&
+            showGoalLines &&
+            state.config.goalCondition === "opposite-edge" &&
+            !state.config.teams &&
             (() => {
               type Edge = "top" | "bottom" | "left" | "right";
               const edgeToColors: Record<Edge, string[]> = {
@@ -935,9 +1197,22 @@ export function GameBoard({
               : -1;
             const placingPlayer =
               playerIndex >= 0 ? state.players[playerIndex] : null;
-            const wallColor =
-              placingPlayer?.color ||
-              (playerIndex >= 0 ? DEFAULT_COLORS[playerIndex] : "#b45309");
+            const team = placingPlayer
+              ? state.config.teams?.[placingPlayer.id]
+              : undefined;
+
+            let wallColor: string;
+            if (team === "A" && teamColors.A) {
+              wallColor = teamColors.A;
+            } else if (team === "B" && teamColors.B) {
+              wallColor = teamColors.B;
+            } else if (placingPlayer?.color) {
+              wallColor = placingPlayer.color;
+            } else if (playerIndex >= 0) {
+              wallColor = DEFAULT_COLORS[playerIndex] ?? "#b45309";
+            } else {
+              wallColor = "#b45309";
+            }
             if (wall.orientation === "horizontal") {
               return (
                 <div
@@ -1003,13 +1278,39 @@ export function GameBoard({
           {state.players.map((player) => {
             const pIndex = parseInt(player.id.replace("p", ""));
             const color = player.color || DEFAULT_COLORS[pIndex];
+            const team = state.config.teams?.[player.id];
+            const teamRing =
+              team === "A"
+                ? (teamColors.A ?? "#3b82f6")
+                : team === "B"
+                  ? (teamColors.B ?? "#ef4444")
+                  : undefined;
+
+            // Set your desired inward ring thickness here
+            const ringThickness = 6; // e.g., 6px inward
+
+            const shouldDim =
+              state.config.teams &&
+              state.config.teamWinCondition === "all" &&
+              player.finished === true;
+
             const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
             const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
+
             return (
               <div
                 key={player.id}
                 className="player-piece-animated"
-                style={{ left: xPos, top: yPos, backgroundColor: color }}
+                style={{
+                  left: xPos,
+                  top: yPos,
+                  backgroundColor: color,
+                  // 'inset' draws the ring inside the piece; the second shadow keeps the outer drop shadow
+                  boxShadow: teamRing
+                    ? `inset 0 0 0 ${ringThickness}px ${teamRing}, 0 2px 4px rgba(0,0,0,0.4)`
+                    : "0 2px 4px rgba(0,0,0,0.4)",
+                  opacity: shouldDim ? 0.4 : 1,
+                }}
               />
             );
           })}

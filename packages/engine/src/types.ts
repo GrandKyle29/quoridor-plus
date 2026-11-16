@@ -11,6 +11,7 @@ export type Player = {
   eliminated: boolean;
   startIndex?: number; // <-- ADD THIS
   color?: string; // <-- Add this
+  finished?: boolean; // <-- ADD
 };
 
 export type Orientation = "horizontal" | "vertical";

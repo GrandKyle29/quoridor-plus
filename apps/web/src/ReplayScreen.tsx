@@ -43,7 +43,7 @@ export function ReplayScreen() {
   // Build a fresh initial state using the engine's source of truth
   const buildFreshInitialState = (): GameState | null => {
     if (!fullGame) return null;
-    return buildInitialState(
+    const fresh = buildInitialState(
       fullGame.config,
       fullGame.players.map((p, i) => ({
         name: p.name,
@@ -51,6 +51,8 @@ export function ReplayScreen() {
         startIndex: p.startIndex ?? i,
       })),
     );
+    // Preserve original game date through scrubbing/re-shares.
+    return { ...fresh, createdAt: fullGame.createdAt };
   };
 
   // Incremental scrub: apply forward delta from replayStep to currentStep

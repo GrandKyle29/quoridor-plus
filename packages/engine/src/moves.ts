@@ -351,10 +351,17 @@ export function legalMoves(state: GameState): Move[] {
   }
 
   // --- Wall placements ---
-  const hasWallsAvailable =
-    state.config.wallPool === "shared"
-      ? (state.sharedWallsRemaining ?? 0) > 0
-      : currentPlayer.wallsRemaining > 0;
+  let hasWallsAvailable: boolean;
+  if (state.config.wallPool === "shared") {
+    hasWallsAvailable = (state.sharedWallsRemaining ?? 0) > 0;
+  } else if (state.config.wallPool === "team") {
+    const team = state.config.teams?.[currentPlayer.id];
+    hasWallsAvailable = team
+      ? (state.sharedWallsPerTeam?.[team] ?? 0) > 0
+      : false;
+  } else {
+    hasWallsAvailable = currentPlayer.wallsRemaining > 0;
+  }
 
   if (hasWallsAvailable) {
     for (let wx = 0; wx < boardSize - 1; wx++) {

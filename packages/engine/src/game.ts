@@ -13,12 +13,72 @@ export function buildInitialState(
   config: GameConfig,
   playerData: { name: string; color?: string; startIndex: number }[],
 ): GameState {
-  const startPositions =
-    config.goalCondition === "top"
-      ? getTopRowStartPositions(playerData.length, config.boardSize)
-      : config.goalCondition === "center"
-        ? getCenterStartPositions(playerData.length, config.boardSize)
-        : getStartPositionsRaw(playerData.length, config.boardSize);
+  // 1. Resolve teams
+  const playerIds = playerData.map((_, i) => `p${i}`);
+  let teams: { [id: string]: "A" | "B" } | undefined;
+  if (config.useTeams) {
+    teams = assignTeamsForGame(playerIds, config.teams ?? {});
+  }
+
+  // 2. Compute start positions based on goal condition
+  let startPositions: Coord[];
+  let teamStartIndices: number[] | undefined;
+
+  if (config.goalCondition === "opposite-edge") {
+    if (teams) {
+      const layout = getOppositeEdgeTeamLayout(
+        playerIds,
+        teams,
+        config.boardSize,
+      );
+      startPositions = layout.positions;
+      teamStartIndices = layout.startIndices;
+    } else {
+      startPositions = getStartPositionsRaw(
+        playerData.length,
+        config.boardSize,
+      );
+    }
+  } else if (config.goalCondition === "center") {
+    if (teams) {
+      const teamAIds = playerIds.filter((id) => teams![id] === "A");
+      const teamBIds = playerIds.filter((id) => teams![id] === "B");
+
+      // We no longer need a fallback; getDiamondTeamPositions
+      // will automatically compress the diamond to fit the board.
+      const aPositions = getDiamondTeamPositions(
+        teamAIds.length,
+        config.boardSize,
+        "A",
+      );
+      const bPositions = getDiamondTeamPositions(
+        teamBIds.length,
+        config.boardSize,
+        "B",
+      );
+
+      startPositions = new Array(playerData.length);
+      teamAIds.forEach((id, i) => {
+        startPositions[playerIds.indexOf(id)] = aPositions[i]!;
+      });
+      teamBIds.forEach((id, i) => {
+        startPositions[playerIds.indexOf(id)] = bPositions[i]!;
+      });
+    } else {
+      startPositions = getCenterStartPositions(
+        playerData.length,
+        config.boardSize,
+      );
+    }
+  } else {
+    // "top"
+    startPositions = getTopRowStartPositions(
+      playerData.length,
+      config.boardSize,
+    );
+  }
+
+  // 3. Starting walls + wall pools
   const startingWalls =
     config.startingWalls === "scaled"
       ? Math.max(3, 10 - playerData.length)
@@ -26,22 +86,42 @@ export function buildInitialState(
 
   let sharedWallsRemaining: number | undefined;
   if (config.wallPool === "shared") {
-    sharedWallsRemaining = startingWalls * playerData.length;
+    // In team mode, startingWalls means "per team" (so 2 teams = 2x the pool).
+    // Otherwise it means "per player" (pool = startingWalls * playerCount).
+    sharedWallsRemaining = teams
+      ? startingWalls * 2
+      : startingWalls * playerData.length;
   }
 
+  let sharedWallsPerTeam: { A: number; B: number } | undefined;
+  if (config.wallPool === "team" && teams) {
+    sharedWallsPerTeam = {
+      A: startingWalls,
+      B: startingWalls,
+    };
+  }
+
+  // 4. Build players
   const players: Player[] = playerData.map((p, i) => ({
     id: `p${i}`,
     name: p.name,
     color: p.color,
-    position: startPositions[p.startIndex]!,
+    position: startPositions[i]!,
     wallsRemaining: config.wallPool === "shared" ? 0 : startingWalls,
     connected: true,
     eliminated: false,
-    startIndex: p.startIndex,
+    startIndex: teamStartIndices ? teamStartIndices[i] : i,
+    finished: false,
   }));
 
+  // 5. Resolved config
+  const finalConfig: GameConfig = {
+    ...config,
+    teams,
+  };
+
   return {
-    config,
+    config: finalConfig,
     players,
     walls: [],
     turnIndex: 0,
@@ -49,10 +129,68 @@ export function buildInitialState(
     status: "active",
     winner: null,
     sharedWallsRemaining,
+    sharedWallsPerTeam,
+    createdAt: new Date().toISOString(), // <-- NEW
   };
 }
 export function getStartPositions(count: number, size: number): Coord[] {
   return getStartPositionsRaw(count, size);
+}
+// Auto-assign players to teams by alternating index.
+// p0, p2, p4... → team A (if teamAIsEven); p1, p3... → team B.
+export function assignTeamsByAlternation(
+  playerIds: string[],
+  teamAIsEven: boolean = true,
+): { [id: string]: "A" | "B" } {
+  const teams: { [id: string]: "A" | "B" } = {};
+  playerIds.forEach((id, i) => {
+    const isEvenIndex = i % 2 === 0;
+    teams[id] = isEvenIndex === teamAIsEven ? "A" : "B";
+  });
+  return teams;
+}
+
+// Only used for goalCondition === "opposite-edge" with teams.
+// Team A → bottom edge, spreads N players evenly. Team B → top edge.
+// Also returns startIndices (0 for team A, 1 for team B) so isPlayerGoal works.
+function getOppositeEdgeTeamLayout(
+  playerIds: string[],
+  teams: { [id: string]: "A" | "B" },
+  boardSize: number,
+): { positions: Coord[]; startIndices: number[] } {
+  const teamA = playerIds.filter((id) => teams[id] === "A");
+  const teamB = playerIds.filter((id) => teams[id] === "B");
+  const mid = Math.floor(boardSize / 2);
+  const positions: Coord[] = new Array(playerIds.length);
+  const startIndices: number[] = new Array(playerIds.length);
+
+  // Spread count players evenly along x, 2 tiles apart, centered on mid.
+  const spreadX = (count: number): number[] => {
+    if (count === 1) return [mid];
+    const xs: number[] = [];
+    const span = (count - 1) * 2;
+    const startX = Math.max(0, mid - Math.floor(span / 2));
+    for (let i = 0; i < count; i++) {
+      xs.push(Math.min(boardSize - 1, startX + i * 2));
+    }
+    return xs;
+  };
+
+  const aXs = spreadX(teamA.length);
+  teamA.forEach((id, i) => {
+    const idx = playerIds.indexOf(id);
+    positions[idx] = { x: aXs[i]!, y: 0 };
+    startIndices[idx] = 0; // team A from bottom, goal top
+  });
+
+  const bXs = spreadX(teamB.length);
+  teamB.forEach((id, i) => {
+    const idx = playerIds.indexOf(id);
+    positions[idx] = { x: bXs[i]!, y: boardSize - 1 };
+    startIndices[idx] = 1; // team B from top, goal bottom
+  });
+
+  return { positions, startIndices };
 }
 export function getCenterStartPositions(count: number, size: number): Coord[] {
   const positions = getStartPositionsRaw(count, size);
@@ -197,6 +335,95 @@ export function getTopRowStartPositions(
 
   throw new Error(`Cannot place ${count} players on a ${boardSize}-wide row`);
 }
+
+function getDiamondTeamPositions(
+  teamSize: number,
+  boardSize: number,
+  team: "A" | "B",
+): Coord[] {
+  const center = Math.floor(boardSize / 2);
+
+  // Calculate how far we can safely spread horizontally before hitting the edge.
+  // We subtract 1 from the edge to leave a gap.
+  const maxHorizontalSpan = Math.min(
+    teamSize - 1,
+    Math.floor((boardSize - 3) / 2),
+  );
+
+  const offsets: number[] = [];
+  for (let i = 0; i < teamSize; i++) {
+    if (teamSize === 1) {
+      offsets.push(0);
+    } else {
+      // Map index to the range [-maxHorizontalSpan, maxHorizontalSpan]
+      const ratio = i / (teamSize - 1);
+      const offset = Math.round(
+        -maxHorizontalSpan + ratio * 2 * maxHorizontalSpan,
+      );
+      offsets.push(offset);
+    }
+  }
+
+  return offsets.map((offset) => {
+    const x = center + offset;
+    const yOffset = Math.abs(offset);
+    const y = team === "A" ? yOffset : boardSize - 1 - yOffset;
+    return { x, y };
+  });
+}
+// Assign teams for a team-mode game.
+// Explicit assignments in config.teams are always honored.
+// Anyone unassigned gets randomly distributed, with balance enforced
+// (|teamA - teamB| <= 1). randomizeSpawns does NOT affect this.
+export function assignTeamsForGame(
+  playerIds: string[],
+  explicitTeams: { [id: string]: "A" | "B" },
+): { [id: string]: "A" | "B" } {
+  const teams: { [id: string]: "A" | "B" } = { ...explicitTeams };
+
+  const assignedA = Object.values(teams).filter((t) => t === "A").length;
+  const assignedB = Object.values(teams).filter((t) => t === "B").length;
+
+  const unassigned = playerIds.filter((id) => !teams[id]);
+
+  // If nothing to assign, return
+  if (unassigned.length === 0) return teams;
+
+  // Sanity: if explicit assignments are already imbalanced by 2+,
+  // throw so the caller can handle it.
+  if (Math.abs(assignedA - assignedB) > 1) {
+    throw new Error(
+      `Team assignment is unbalanced: ${assignedA} on A, ${assignedB} on B.`,
+    );
+  }
+
+  // Fisher-Yates shuffle of unassigned players
+  const shuffled = [...unassigned];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+
+  let aCount = assignedA;
+  let bCount = assignedB;
+  for (const id of shuffled) {
+    if (aCount < bCount) {
+      teams[id] = "A";
+      aCount++;
+    } else if (bCount < aCount) {
+      teams[id] = "B";
+      bCount++;
+    } else {
+      // Tie: random
+      const choice = Math.random() < 0.5 ? "A" : "B";
+      teams[id] = choice;
+      if (choice === "A") aCount++;
+      else bCount++;
+    }
+  }
+
+  return teams;
+}
 // Fisher-Yates shuffle for randomizing player order
 function shuffleArray<T>(array: T[]): T[] {
   const newArr = [...array];
@@ -210,8 +437,8 @@ export function createGame(
   config: GameConfig,
   playerNames: string[],
   playerColors?: string[],
-): GameState {
-  const combinedPlayers = playerNames.map((name, i) => ({
+) {
+  const combinedPlayers = playerNames.map((name: string, i: number) => ({
     name,
     color: playerColors?.[i],
   }));
@@ -241,6 +468,10 @@ function copyState(state: GameState): GameState {
     status: state.status,
     winner: state.winner,
     sharedWallsRemaining: state.sharedWallsRemaining,
+    sharedWallsPerTeam: state.sharedWallsPerTeam
+      ? { ...state.sharedWallsPerTeam }
+      : undefined,
+    createdAt: state.createdAt, // <-- NEW
   };
 }
 export function isPlayerGoal(
@@ -263,13 +494,21 @@ export function isPlayerGoal(
     const player = state.players[playerIndex];
     if (!player) return false;
     const edge = (player.startIndex ?? playerIndex) % 4;
-    if (edge === 0) return coord.y === boardSize - 1; // started bottom → goal top
-    if (edge === 1) return coord.y === 0; // started top → goal bottom
-    if (edge === 2) return coord.x === boardSize - 1; // started left → goal right
-    if (edge === 3) return coord.x === 0; // started right → goal left
+    if (edge === 0) return coord.y === boardSize - 1;
+    if (edge === 1) return coord.y === 0;
+    if (edge === 2) return coord.x === boardSize - 1;
+    if (edge === 3) return coord.x === 0;
   }
 
   return false;
+}
+function getNextActivePlayerIndex(state: GameState): number {
+  let idx = state.turnIndex;
+  for (let i = 0; i < state.players.length; i++) {
+    idx = (idx + 1) % state.players.length;
+    if (!state.players[idx]!.finished) return idx;
+  }
+  return state.turnIndex; // fallback if everyone is finished (shouldn't happen)
 }
 // Update checkWin to use the helper
 function checkWin(state: GameState, player: Player): boolean {
@@ -320,10 +559,15 @@ export function applyMove(
     currentPlayer.position = move.to;
   } else if (move.kind === "wall") {
     nextState.walls.push({ ...move.wall, placedBy: currentPlayer.id });
-
     if (nextState.config.wallPool === "shared") {
       nextState.sharedWallsRemaining =
         (nextState.sharedWallsRemaining ?? 0) - 1;
+    } else if (nextState.config.wallPool === "team") {
+      const team = nextState.config.teams?.[currentPlayer.id];
+      if (team && nextState.sharedWallsPerTeam) {
+        nextState.sharedWallsPerTeam[team] =
+          nextState.sharedWallsPerTeam[team] - 1;
+      }
     } else {
       currentPlayer.wallsRemaining -= 1;
     }
@@ -334,13 +578,42 @@ export function applyMove(
 
   // 7. Did this move win the game?
   if (checkWin(nextState, currentPlayer)) {
+    currentPlayer.finished = true;
+
+    if (nextState.config.teams) {
+      const team = nextState.config.teams[currentPlayer.id];
+      const winCondition = nextState.config.teamWinCondition ?? "all";
+
+      if (winCondition === "any") {
+        nextState.status = "finished";
+        nextState.winner = currentPlayer.id;
+        return nextState;
+      }
+
+      // winCondition === "all"
+      const teamPlayers = nextState.players.filter(
+        (p) => nextState.config.teams?.[p.id] === team,
+      );
+      const allFinished = teamPlayers.every((p) => p.finished === true);
+
+      if (allFinished) {
+        nextState.status = "finished";
+        nextState.winner = currentPlayer.id;
+        return nextState;
+      }
+
+      nextState.turnIndex = getNextActivePlayerIndex(nextState);
+      return nextState;
+    }
+
+    // Non-team mode
     nextState.status = "finished";
     nextState.winner = currentPlayer.id;
     return nextState;
   }
 
-  // 8. Advance the turn
-  nextState.turnIndex = (nextState.turnIndex + 1) % nextState.players.length;
+  // Advance to the next non-finished player
+  nextState.turnIndex = getNextActivePlayerIndex(nextState);
 
   return nextState;
 }

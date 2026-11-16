@@ -27,9 +27,13 @@ export type LocalSetupState = {
   goalCondition: string;
   startingWalls: number;
   randomizeSpawns: boolean;
-  sharedWalls: boolean;
+  wallPool: "per-player" | "shared" | "team";
   lenientJumps: boolean;
   useWood: boolean;
+  useTeams: boolean;
+  teamWinCondition: "any" | "all";
+  botCount: number; // <-- NEW
+  botTimeLimit: number; // <-- NEW
 };
 
 const DEFAULT_LOCAL_SETUP: LocalSetupState = {
@@ -37,9 +41,13 @@ const DEFAULT_LOCAL_SETUP: LocalSetupState = {
   goalCondition: "opposite-edge",
   startingWalls: 10,
   randomizeSpawns: true,
-  sharedWalls: false,
+  wallPool: "per-player",
   lenientJumps: false,
   useWood: false,
+  useTeams: false,
+  teamWinCondition: "all",
+  botCount: 1, // <-- NEW
+  botTimeLimit: 1500, // <-- NEW
 };
 
 export function loadLocalSetup(
@@ -47,9 +55,14 @@ export function loadLocalSetup(
 ): LocalSetupState {
   try {
     const raw = localStorage.getItem("quoridor_localSetup");
-    const stored = raw
-      ? { ...DEFAULT_LOCAL_SETUP, ...JSON.parse(raw) }
-      : DEFAULT_LOCAL_SETUP;
+    if (!raw) return { ...DEFAULT_LOCAL_SETUP, ...overrides };
+    const parsed = JSON.parse(raw);
+    // Migrate legacy sharedWalls -> wallPool
+    if (parsed.sharedWalls !== undefined && parsed.wallPool === undefined) {
+      parsed.wallPool = parsed.sharedWalls ? "shared" : "per-player";
+      delete parsed.sharedWalls;
+    }
+    const stored = { ...DEFAULT_LOCAL_SETUP, ...parsed };
     return { ...stored, ...overrides };
   } catch {
     return { ...DEFAULT_LOCAL_SETUP, ...overrides };

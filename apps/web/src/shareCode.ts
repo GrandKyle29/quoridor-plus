@@ -23,6 +23,7 @@ export function encodeShareCode(state: GameState): string {
       startIndex: p.startIndex ?? 0,
     })),
     moveLog: encodeMoves(state.moveLog),
+    createdAt: state.createdAt, // <-- NEW
   };
 
   const json = JSON.stringify(data);
@@ -53,7 +54,9 @@ export function decodeShareCode(code: string): GameState | null {
 
     // Use the SAME builder that createGame uses — no duplicate logic!
     let currentState = buildInitialState(config, playerData);
-
+    if (raw.createdAt) {
+      currentState = { ...currentState, createdAt: raw.createdAt };
+    }
     for (let i = 0; i < moveLog.length; i++) {
       const move = moveLog[i]!;
       try {

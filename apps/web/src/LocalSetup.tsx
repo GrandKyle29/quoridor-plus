@@ -8,17 +8,12 @@ export function LocalSetup() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get settings from the previous game if we came from one, otherwise
-  // load from localStorage (or defaults).
   const prevConfig = location.state?.prevConfig;
 
   const [name, setName] = useState("");
-  const [botCount, setBotCount] = useState(1);
-  const [botTimeLimit, setBotTimeLimit] = useState(1500);
 
   const [setup, setSetup] = useState<LocalSetupState>(() => {
     if (prevConfig) {
-      // Came from a finished game — use its config as starting point
       return loadLocalSetup({
         boardSize: prevConfig.boardSize,
         goalCondition: prevConfig.goalCondition,
@@ -27,15 +22,16 @@ export function LocalSetup() {
             ? prevConfig.startingWalls
             : 10,
         randomizeSpawns: prevConfig.randomizeSpawns !== false,
-        sharedWalls: prevConfig.wallPool === "shared",
+        wallPool: prevConfig.wallPool ?? "per-player",
         lenientJumps: prevConfig.lenientJumps === true,
-        useWood: false, // not stored in engine config, so default
+        useTeams: prevConfig.useTeams === true,
+        teamWinCondition: prevConfig.teamWinCondition ?? "all",
+        useWood: false,
       });
     }
     return loadLocalSetup();
   });
 
-  // Persist every time setup changes
   useEffect(() => {
     saveLocalSetup(setup);
   }, [setup]);
@@ -46,27 +42,55 @@ export function LocalSetup() {
   ) => {
     setSetup((prev) => ({ ...prev, [key]: value }));
   };
-  const playerCount = botCount + 1;
+  const resetToDefaults = () => {
+    setSetup((prev) => ({
+      ...prev,
+      boardSize: 9,
+      goalCondition: "opposite-edge",
+      startingWalls: 10,
+      wallPool: "per-player",
+      useTeams: false,
+      teamWinCondition: "all",
+      lenientJumps: false,
+      randomizeSpawns: true,
+    }));
+  };
+  const playerCount = setup.botCount + 1;
   const reachTheTopDisabled = playerCount > setup.boardSize;
+  const teamsAvailable = playerCount >= 4;
+  const teamsEnabled = teamsAvailable && setup.useTeams === true;
+
   useEffect(() => {
-    if (setup.goalCondition === "top" && botCount + 1 > setup.boardSize) {
+    if (setup.goalCondition === "top" && playerCount > setup.boardSize) {
       update("goalCondition", "opposite-edge");
     }
-  }, [botCount, setup.boardSize, setup.goalCondition]);
+  }, [setup.botCount, setup.boardSize, setup.goalCondition]);
+
+  // Auto-adjust wall pool when team mode changes
+  useEffect(() => {
+    if (teamsEnabled && setup.wallPool === "per-player") {
+      update("wallPool", "team");
+    } else if (!teamsEnabled && setup.wallPool === "team") {
+      update("wallPool", "per-player");
+    }
+  }, [teamsEnabled, setup.wallPool]);
+
+  const wallPoolOptions = teamsEnabled
+    ? (["shared", "team"] as const)
+    : (["per-player", "shared"] as const);
+
   const startGame = () => {
     const playerNames = [name.trim() || "Player"];
-    for (let i = 0; i < botCount; i++) {
+    for (let i = 0; i < setup.botCount; i++) {
       playerNames.push(`Bot ${i + 1}`);
     }
-
-    //const DEFAULT_COLORS = COLOR_PALETTE;
 
     navigate("/game", {
       state: {
         playerNames,
         vsBot: true,
         useWood: setup.useWood,
-        botTimeLimit,
+        botTimeLimit: setup.botTimeLimit,
         playerColors: DEFAULT_COLORS.slice(0, playerNames.length),
         configOverrides: {
           boardSize: setup.boardSize,
@@ -74,8 +98,11 @@ export function LocalSetup() {
           startingWalls: setup.startingWalls,
           lenientJumps: setup.lenientJumps,
           randomizeSpawns: setup.randomizeSpawns,
-          wallPool: setup.sharedWalls ? "shared" : "per-player",
-          maxPlayers: botCount + 1,
+          wallPool: setup.wallPool,
+          maxPlayers: setup.botCount + 1,
+          useTeams: setup.useTeams,
+          teamWinCondition: setup.teamWinCondition,
+          teams: {},
         },
       },
     });
@@ -83,7 +110,30 @@ export function LocalSetup() {
 
   return (
     <div style={{ maxWidth: "400px", margin: "0 auto" }}>
-      <h2>Local Game Setup</h2>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "15px",
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Game Settings</h2>
+        <button
+          onClick={resetToDefaults}
+          style={{
+            padding: "6px 12px",
+            backgroundColor: "#4b5563",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "13px",
+          }}
+        >
+          Reset to Defaults
+        </button>
+      </div>
 
       <div style={{ marginBottom: "10px" }}>
         <label>Your Name:</label>
@@ -98,17 +148,15 @@ export function LocalSetup() {
       <div style={{ marginBottom: "10px" }}>
         <label>Number of Bots:</label>
         <select
-          value={botCount}
-          onChange={(e) => setBotCount(Number(e.target.value))}
+          value={setup.botCount}
+          onChange={(e) => update("botCount", Number(e.target.value))}
           style={{ width: "100%", padding: "8px", color: "black" }}
         >
-          <option value={1}>1 Bot (1v1)</option>
-          <option value={2}>2 Bots (1v1v1)</option>
-          <option value={3}>3 Bots (1v1v1v1)</option>
-          <option value={4}>4 Bots (5 players)</option>
-          <option value={5}>5 Bots (6 players)</option>
-          <option value={6}>6 Bots (7 players)</option>
-          <option value={7}>7 Bots (8 players)</option>
+          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+            <option key={n} value={n}>
+              {n} Bot{n > 1 ? "s" : ""} ({n + 1} players)
+            </option>
+          ))}
         </select>
       </div>
 
@@ -135,14 +183,13 @@ export function LocalSetup() {
           <option value="opposite-edge">Reach Opposite Side</option>
           <option value="center">King of the Hill</option>
           <option value="top" disabled={reachTheTopDisabled}>
-            Reach the Top
-            {reachTheTopDisabled ? " (unavailable for this board size)" : ""}
+            Reach the Top{reachTheTopDisabled ? " (unavailable)" : ""}
           </option>
         </select>
       </div>
 
       <div style={{ marginBottom: "10px" }}>
-        <label>Walls per Player:</label>
+        <label>{teamsEnabled ? "Walls per Team:" : "Walls per Player:"}</label>
         <input
           type="number"
           value={setup.startingWalls}
@@ -152,58 +199,126 @@ export function LocalSetup() {
       </div>
 
       <div style={{ marginBottom: "10px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            checked={setup.sharedWalls}
-            onChange={(e) => update("sharedWalls", e.target.checked)}
-          />
-          Shared wall pool
-        </label>
+        <label>Wall Pool:</label>
+        <select
+          value={setup.wallPool}
+          onChange={(e) =>
+            update("wallPool", e.target.value as LocalSetupState["wallPool"])
+          }
+          style={{ width: "100%", padding: "8px", color: "black" }}
+        >
+          {wallPoolOptions.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt === "per-player" && "Per Player"}
+              {opt === "shared" &&
+                (teamsEnabled ? "Shared (Both Teams)" : "Shared (All Players)")}
+              {opt === "team" && "Shared (Per Team)"}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {/* Separator */}
+      <div style={{ borderTop: "1px solid #555", margin: "15px 0" }} />
+
+      {/* Teams */}
+      <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <input
+          type="checkbox"
+          disabled={!teamsAvailable}
+          checked={setup.useTeams}
+          onChange={(e) => update("useTeams", e.target.checked)}
+        />
+        Teams mode
+      </label>
+      {!teamsAvailable && (
+        <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+          Teams require at least 4 players.
+        </p>
+      )}
+      {teamsEnabled && (
+        <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+          Players will be randomly assigned to balanced teams at game start.
+        </p>
+      )}
+
+      {/* Team win condition */}
+      {teamsEnabled && (
+        <div style={{ marginTop: "10px" }}>
+          <label>Team Win Condition:</label>
+          <select
+            value={setup.teamWinCondition}
+            onChange={(e) =>
+              update("teamWinCondition", e.target.value as "any" | "all")
+            }
+            style={{ width: "100%", padding: "8px", color: "black" }}
+          >
+            <option value="all">All members must reach the goal</option>
+            <option value="any">First member to reach wins</option>
+          </select>
+        </div>
+      )}
+
+      {/* Separator */}
+      <div style={{ borderTop: "1px solid #555", margin: "15px 0" }} />
+
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "10px",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={setup.lenientJumps}
+          onChange={(e) => update("lenientJumps", e.target.checked)}
+        />
+        Lenient jumps
+      </label>
+
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "10px",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={setup.randomizeSpawns}
+          onChange={(e) => update("randomizeSpawns", e.target.checked)}
+        />
+        Randomize Start Positions
+      </label>
+
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "20px",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={setup.useWood}
+          onChange={(e) => update("useWood", e.target.checked)}
+        />
+        Use Wood Texture
+      </label>
 
       <div style={{ marginBottom: "10px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            checked={setup.lenientJumps}
-            onChange={(e) => update("lenientJumps", e.target.checked)}
-          />
-          Lenient jumps (diagonals always available)
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            checked={setup.randomizeSpawns}
-            onChange={(e) => update("randomizeSpawns", e.target.checked)}
-          />
-          Randomize Starting Positions
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "20px" }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={setup.useWood}
-            onChange={(e) => update("useWood", e.target.checked)}
-          />{" "}
-          Use Wood Texture
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>Bot Think Time: {(botTimeLimit / 1000).toFixed(1)}s</label>
+        <label>Bot Think Time: {(setup.botTimeLimit / 1000).toFixed(1)}s</label>
         <input
           type="range"
           min="500"
           max="15000"
           step="500"
-          value={botTimeLimit}
-          onChange={(e) => setBotTimeLimit(Number(e.target.value))}
+          value={setup.botTimeLimit}
+          onChange={(e) => update("botTimeLimit", Number(e.target.value))}
           style={{ width: "100%" }}
         />
         <div
@@ -236,6 +351,7 @@ export function LocalSetup() {
       >
         Start Game
       </button>
+
       <button
         onClick={() => navigate("/")}
         style={{

@@ -729,3 +729,102 @@ describe("getCenterStartPositions — KotH fairness", () => {
     }
   });
 });
+describe("Team assignment", () => {
+  const baseTeamConfig: GameConfig = {
+    ...classicConfig,
+    goalCondition: "opposite-edge",
+    useTeams: true,
+    teamWinCondition: "all",
+    randomizeSpawns: false,
+    maxPlayers: 4,
+  };
+
+  it("all unassigned → randomly balanced A/B", () => {
+    const state = createGame(baseTeamConfig, ["P0", "P1", "P2", "P3"]);
+    const teams = state.config.teams!;
+    expect(Object.keys(teams).length).toBe(4);
+    const aCount = Object.values(teams).filter((t) => t === "A").length;
+    const bCount = Object.values(teams).filter((t) => t === "B").length;
+    expect(Math.abs(aCount - bCount)).toBeLessThanOrEqual(1);
+  });
+
+  it("explicit assignments honored; unassigned fill randomly", () => {
+    const config = {
+      ...baseTeamConfig,
+      teams: { p0: "A" as const, p1: "B" as const },
+    };
+    const state = createGame(config, ["P0", "P1", "P2", "P3"]);
+    const teams = state.config.teams!;
+    expect(teams.p0).toBe("A");
+    expect(teams.p1).toBe("B");
+    // p2 and p3 fill the remaining slots (one on each team)
+    const all = [teams.p0, teams.p1, teams.p2, teams.p3];
+    const aCount = all.filter((t) => t === "A").length;
+    const bCount = all.filter((t) => t === "B").length;
+    expect(aCount).toBe(2);
+    expect(bCount).toBe(2);
+  });
+
+  it("5 players with 2 assigned → 3v2 or 2v3", () => {
+    const config = {
+      ...baseTeamConfig,
+      maxPlayers: 5,
+      teams: { p0: "A" as const, p1: "B" as const },
+    };
+    const state = createGame(config, ["P0", "P1", "P2", "P3", "P4"]);
+    const teams = state.config.teams!;
+    const aCount = Object.values(teams).filter((t) => t === "A").length;
+    const bCount = Object.values(teams).filter((t) => t === "B").length;
+    expect(Math.abs(aCount - bCount)).toBe(1);
+  });
+
+  it("throws when explicit assignments are imbalanced", () => {
+    const config = {
+      ...baseTeamConfig,
+      maxPlayers: 4,
+      teams: { p0: "A" as const, p1: "A" as const, p2: "A" as const },
+    };
+    expect(() => createGame(config, ["P0", "P1", "P2", "P3"])).toThrow();
+  });
+
+  it("randomizeSpawns does not affect team assignment", () => {
+    // Run both, verify team structure is the same shape (2v2, everyone assigned)
+    for (const randomize of [true, false]) {
+      const config = { ...baseTeamConfig, randomizeSpawns: randomize };
+      const state = createGame(config, ["P0", "P1", "P2", "P3"]);
+      const teams = state.config.teams!;
+      expect(Object.keys(teams).length).toBe(4);
+    }
+  });
+
+  it("teammates start 2 apart regardless of assignment order", () => {
+    const config: GameConfig = {
+      ...classicConfig,
+      goalCondition: "opposite-edge",
+      useTeams: true,
+      randomizeSpawns: false,
+      maxPlayers: 6,
+      teams: {
+        p0: "A",
+        p1: "A",
+        p2: "B",
+        p3: "B",
+        p4: "A",
+        p5: "B",
+      },
+    };
+    const state = createGame(config, ["P0", "P1", "P2", "P3", "P4", "P5"]);
+
+    // Team A: even-index x-positions on bottom row
+    const teamA = state.players.filter((p) => config.teams![p.id] === "A");
+    const axs = teamA.map((p) => p.position.x).sort((a, b) => a - b);
+    expect(axs).toEqual([2, 4, 6]);
+    expect(teamA.every((p) => p.position.y === 0)).toBe(true);
+
+    // Team B: even-index x-positions on top row
+    const teamB = state.players.filter((p) => config.teams![p.id] === "B");
+    const bxs = teamB.map((p) => p.position.x).sort((a, b) => a - b);
+    expect(bxs).toEqual([2, 4, 6]);
+    expect(teamB.every((p) => p.position.y === 8)).toBe(true);
+  });
+});
