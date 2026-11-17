@@ -556,9 +556,9 @@ describe("getStartPositionsRaw — opposite-edge 5-8 players", () => {
     const pos = getStartPositionsRaw(5, 9);
     expect(pos).toEqual([
       { x: 3, y: 0 }, // p0 bottom slot 0
-      { x: 3, y: 8 }, // p1 top slot 0
-      { x: 0, y: 3 }, // p2 left slot 0
-      { x: 8, y: 3 }, // p3 right slot 0
+      { x: 4, y: 8 }, // p1 top slot 0
+      { x: 0, y: 4 }, // p2 left slot 0
+      { x: 8, y: 4 }, // p3 right slot 0
       { x: 5, y: 0 }, // p4 bottom slot 1
     ]);
   });
@@ -581,12 +581,12 @@ describe("getStartPositionsRaw — opposite-edge 5-8 players", () => {
     const pos = getStartPositionsRaw(8, 7);
     expect(pos).toEqual([
       { x: 2, y: 0 },
-      { x: 2, y: 6 },
-      { x: 0, y: 2 },
-      { x: 6, y: 2 },
-      { x: 4, y: 0 },
       { x: 4, y: 6 },
       { x: 0, y: 4 },
+      { x: 6, y: 2 },
+      { x: 4, y: 0 },
+      { x: 2, y: 6 },
+      { x: 0, y: 2 },
       { x: 6, y: 4 },
     ]);
   });
@@ -595,12 +595,12 @@ describe("getStartPositionsRaw — opposite-edge 5-8 players", () => {
     const pos = getStartPositionsRaw(8, 11);
     expect(pos).toEqual([
       { x: 4, y: 0 },
-      { x: 4, y: 10 },
-      { x: 0, y: 4 },
-      { x: 10, y: 4 },
-      { x: 6, y: 0 },
       { x: 6, y: 10 },
       { x: 0, y: 6 },
+      { x: 10, y: 4 },
+      { x: 6, y: 0 },
+      { x: 4, y: 10 },
+      { x: 0, y: 4 },
       { x: 10, y: 6 },
     ]);
   });
