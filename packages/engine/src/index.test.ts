@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
-import { isPlayerGoal, getTopRowStartPositions } from "./game";
+import {
+  isPlayerGoal,
+  getTopRowStartPositions,
+  getStartPositionsRaw,
+} from "./game";
 import { getCenterStartPositions } from "./game";
 
 const classicConfig: GameConfig = {

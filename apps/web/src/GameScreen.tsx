@@ -5,8 +5,8 @@ import { GameBoard } from "./GameBoard";
 import { WaitingRoom } from "./WaitingRoom";
 import { getMyPlayerId } from "./utils";
 import { applyMove } from "@quoridor/engine";
-import type { Move } from "@quoridor/engine";
-import { encodeShareCode } from "./shareCode";
+import type { EliminationReason, GameState, Move } from "@quoridor/engine";
+import { decodeShareCode, encodeShareCode } from "./shareCode";
 import { DebugOverlay } from "./DebugOverlay";
 
 export function GameScreen() {
@@ -136,6 +136,7 @@ export function GameScreen() {
   useEffect(() => {
     if (!room?.game_state) return;
     if (room.status !== "playing") return;
+    if (room.game_state.status !== "active") return;
     if (room.host_id !== myId) return;
 
     const currentPlayer = room.game_state.players[room.game_state.turnIndex];
@@ -148,36 +149,42 @@ export function GameScreen() {
     if (!stillInRoom) {
       const timer = setTimeout(async () => {
         try {
-          const skipMove: Move = { kind: "skip" };
-          const nextState = applyMove(room.game_state, skipMove);
-          const { data: updatedRows, error: updateErr } = await supabase
-            .from("rooms")
-            .update({ game_state: nextState })
-            .eq("id", roomCode)
-            .filter(
-              "game_state->>turnIndex",
-              "eq",
-              String(room.game_state.turnIndex),
-            )
-            .select("id");
+          // A player who is no longer in the room is out of the game: remove
+          // their pawn instead of leaving it on the board and skipping forever.
+          const elimination: Move = {
+            kind: "eliminate",
+            playerId: currentPlayer.id,
+            reason: "left",
+          };
+          const nextState = applyMove(room.game_state, elimination);
+          const rev = room.game_state.moveCount ?? 0;
+          const broadcastState: GameState = {
+            ...nextState,
+            moveLog: [],
+            moveCount: rev + 1,
+          };
+          const { data: updatedRows, error: updateErr } =
+            await writeGameState(broadcastState, room.game_state);
 
           if (updateErr || !updatedRows || updatedRows.length === 0) {
             console.warn(
-              "Skip aborted (turn advanced elsewhere):",
+              "Elimination aborted (state changed elsewhere):",
               updateErr,
               updatedRows?.length,
             );
             return;
           }
 
-          console.log("Skip applied. Inserting move.");
+          console.log("Eliminated absent player. Inserting move.");
           await supabase.from("moves").insert({
             room_id: roomCode,
-            move_data: skipMove,
+            move_data: { ...elimination, seq: rev + 1 },
           });
-          console.log("Skip move inserted successfully.");
+          console.log("Elimination move inserted successfully.");
 
-          setRoom({ ...room, game_state: nextState });
+          setRoom((current: any) =>
+            current ? { ...current, game_state: broadcastState } : current,
+          );
         } catch (e) {
           console.error("Auto-skip failed:", e);
         }
@@ -190,8 +197,97 @@ export function GameScreen() {
   // ==========================================
   // 4. GAME ACTIONS (Leave, Kick, Play)
   // ==========================================
+  // Write a new game state under an optimistic lock: the update only lands if
+  // nobody else changed the state since we read it. Callers re-read and retry
+  // when it returns no rows, which keeps the stored move log and the state in
+  // step even when a move and a resign/elimination land at the same moment.
+  const writeGameState = async (nextState: GameState, expected: GameState) => {
+    const base: any = supabase
+      .from("rooms")
+      .update({ game_state: nextState })
+      .eq("id", roomCode);
+
+    const guarded: any =
+      expected.moveCount !== undefined
+        ? base.filter(
+            "game_state->>moveCount",
+            "eq",
+            String(expected.moveCount),
+          )
+        : // States saved before moveCount existed: fall back to the turn guard.
+          base.filter(
+            "game_state->>turnIndex",
+            "eq",
+            String(expected.turnIndex),
+          );
+
+    return guarded.select("id");
+  };
+
+  // Remove a player's pawn from the board and record it in the move log so
+  // replays show the same thing. Retries if a turn landed while we were writing.
+  const eliminatePlayer = async (
+    playerId: string,
+    reason: EliminationReason = "left",
+  ) => {
+    if (!roomCode) return;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("game_state, status")
+        .eq("id", roomCode)
+        .single();
+
+      if (error || !data?.game_state || data.status !== "playing") return;
+
+      const gameState = data.game_state as GameState;
+      if (gameState.status !== "active") return;
+      if (!gameState.players.some((p) => p.id === playerId && !p.eliminated))
+        return;
+
+      const elimination: Move = { kind: "eliminate", playerId, reason };
+      const nextState = applyMove(gameState, elimination);
+      const rev = gameState.moveCount ?? 0;
+      const broadcastState: GameState = {
+        ...nextState,
+        moveLog: [],
+        moveCount: rev + 1,
+      };
+
+      const { data: updatedRows, error: updateErr } = await writeGameState(
+        broadcastState,
+        gameState,
+      );
+
+      if (updateErr || !updatedRows || updatedRows.length === 0) continue;
+
+      await supabase.from("moves").insert({
+        room_id: roomCode,
+        move_data: { ...elimination, seq: rev + 1 },
+      });
+
+      setRoom((current: any) =>
+        current ? { ...current, game_state: broadcastState } : current,
+      );
+      return;
+    }
+  };
+
   const leaveRoom = async (isExplicitLeave = true) => {
     if (!room || !roomCode) return;
+
+    const leaving = room.players.find((p: any) => p.id === myId);
+    const leavingEnginePlayer = room.game_state?.players?.find(
+      (p: any) => p.name === leaving?.name,
+    );
+    if (
+      room.status === "playing" &&
+      leavingEnginePlayer &&
+      !leavingEnginePlayer.eliminated
+    ) {
+      await eliminatePlayer(leavingEnginePlayer.id, "left");
+    }
 
     const newPlayers = room.players.filter((p: any) => p.id !== myId);
 
@@ -211,6 +307,17 @@ export function GameScreen() {
   const kickFromGame = async (playerName: string) => {
     if (!isHost || !room) return;
 
+    const kickedEnginePlayer = room.game_state?.players?.find(
+      (p: any) => p.name === playerName,
+    );
+    if (
+      room.status === "playing" &&
+      kickedEnginePlayer &&
+      !kickedEnginePlayer.eliminated
+    ) {
+      await eliminatePlayer(kickedEnginePlayer.id, "kicked");
+    }
+
     const newPlayers = room.players.filter((p: any) => p.name !== playerName);
     await supabase
       .from("rooms")
@@ -226,28 +333,84 @@ export function GameScreen() {
     }
   };
 
+  // Resigning gives up the game but keeps you in the room as a spectator.
+  const resignFromGame = async () => {
+    if (!room || room.status !== "playing" || !room.game_state) return;
+
+    const me = room.players.find((p: any) => p.id === myId);
+    const myEnginePlayer = room.game_state.players.find(
+      (p: any) => p.name === me?.name,
+    );
+    if (!myEnginePlayer || myEnginePlayer.eliminated) return;
+
+    const confirmed = window.confirm(
+      "Resign this game? You will stay in the room as a spectator.",
+    );
+    if (!confirmed) return;
+
+    await eliminatePlayer(myEnginePlayer.id, "resigned");
+  };
+
   const playMove = async (move: Move) => {
-    if (!room?.game_state) return;
-    try {
-      const nextState = applyMove(room.game_state, move);
-      const broadcastState = { ...nextState, moveLog: [] };
+    if (!roomCode) return;
+    const myName = room?.players?.find((p: any) => p.id === myId)?.name;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("game_state, status")
+        .eq("id", roomCode)
+        .single();
+
+      if (error || !data?.game_state || data.status !== "playing") return;
+
+      const gameState = data.game_state as GameState;
+      if (gameState.status !== "active") return;
+
+      // If our move lost the race, re-applying it on a fresh state must not
+      // play somebody else's turn for them.
+      const current = gameState.players[gameState.turnIndex];
+      if (myName && current?.name !== myName) return;
+
+      let nextState: GameState;
+      try {
+        nextState = applyMove(gameState, move);
+      } catch (e) {
+        console.error("Illegal move", e);
+        return;
+      }
+
+      const rev = gameState.moveCount ?? 0;
+      const broadcastState: GameState = {
+        ...nextState,
+        moveLog: [],
+        moveCount: rev + 1,
+      };
+
+      const { data: updatedRows, error: updateErr } = await writeGameState(
+        broadcastState,
+        gameState,
+      );
+
+      if (updateErr || !updatedRows || updatedRows.length === 0) continue;
 
       setLastSentBytes(JSON.stringify(broadcastState).length);
-      setRoom({ ...room, game_state: broadcastState });
+      setRoom((currentRoom: any) =>
+        currentRoom
+          ? { ...currentRoom, game_state: broadcastState }
+          : currentRoom,
+      );
 
-      // Save move to DB for replays
+      // Only record the move once its state write won, so the replay log can
+      // never contain a move that did not actually happen.
       await supabase.from("moves").insert({
         room_id: roomCode,
-        move_data: move,
+        move_data: { ...move, seq: rev + 1 },
       });
-
-      await supabase
-        .from("rooms")
-        .update({ game_state: broadcastState })
-        .eq("id", roomCode);
-    } catch (e) {
-      console.error("Illegal move", e);
+      return;
     }
+
+    console.warn("Move rejected: game state kept changing.");
   };
 
   const resetOnlineGame = async () => {
@@ -264,7 +427,7 @@ export function GameScreen() {
 
     const { data: moves, error } = await supabase
       .from("moves")
-      .select("move_data")
+      .select("id, move_data")
       .eq("room_id", roomCode)
       .order("id", { ascending: true });
 
@@ -273,10 +436,31 @@ export function GameScreen() {
       return;
     }
 
-    const fullMoveLog = moves.map((m: any) => m.move_data);
+    // Each row records the revision it was written at. Prefer that order over
+    // database ids, which can invert when two clients insert at once.
+    const rows: any[] = [...moves];
+    const sequenced = rows.every(
+      (row) => typeof row.move_data?.seq === "number",
+    );
+    if (sequenced) rows.sort((a, b) => a.move_data.seq - b.move_data.seq);
+
+    const fullMoveLog: Move[] = rows.map((row) => {
+      const { seq: _seq, ...move } = row.move_data ?? {};
+      return move as Move;
+    });
     const stateWithLog = { ...room.game_state, moveLog: fullMoveLog };
 
     const code = encodeShareCode(stateWithLog);
+
+    // Don't hand out a link that can't actually be replayed.
+    if (!decodeShareCode(code)) {
+      console.error("Replay self-check failed. Move log:", fullMoveLog);
+      alert(
+        "This game's move log is inconsistent, so the replay can't be built.",
+      );
+      return;
+    }
+
     const url = `${window.location.origin}/replay?code=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(url);
     alert(`Replay link copied! (${fullMoveLog.length} moves)`);
@@ -387,6 +571,7 @@ export function GameScreen() {
             onlinePlayers={room.players}
             isHost={isHost}
             onKickPlayer={kickFromGame}
+            onResign={resignFromGame}
             onShareReplay={handleShareReplay}
             isSharingReplay={false}
           />

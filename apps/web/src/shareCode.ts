@@ -81,6 +81,7 @@ export function decodeShareCode(code: string): GameState | null {
             if (m.kind === "move") return `move(${m.to.x},${m.to.y})`;
             if (m.kind === "wall")
               return `wall(${m.wall.coord.x},${m.wall.coord.y},${m.wall.orientation})`;
+            if (m.kind === "eliminate") return `eliminate(${m.playerId})`;
             return "skip";
           }),
         );

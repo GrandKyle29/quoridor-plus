@@ -5,7 +5,9 @@ import { applyMove, isPlayerGoal } from "./game";
 
 // --- 1. Distance BFS ---
 export function getDistanceToGoal(state: GameState, playerId: string): number {
-  const player = state.players.find((p) => p.id === playerId)!;
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.eliminated) return 999; // no pawn on the board
+  if (player.finished) return 0; // <-- NEW
   const playerIndex = state.players.findIndex((p) => p.id === playerId);
   const { boardSize } = state.config;
 
@@ -106,6 +108,7 @@ function canOpponentWinFast(state: GameState, playerId: string): boolean {
   if (playerIndex === -1) return false;
 
   const p = state.players[playerIndex]!;
+  if (p.finished || p.eliminated) return false;
   const { boardSize, goalCondition } = state.config;
   const { x, y } = p.position;
 
@@ -208,7 +211,7 @@ function evaluate(state: GameState, botId: string): number {
 
   let minOppDist = 999;
   for (const p of state.players) {
-    if (p.id !== botId) {
+    if (p.id !== botId && !p.finished && !p.eliminated) {
       const d = getDistanceToGoal(state, p.id);
       if (d < minOppDist) minOppDist = d;
     }
@@ -227,7 +230,7 @@ function evaluate(state: GameState, botId: string): number {
   if (state.config.goalCondition === "top" && state.players.length > 2) {
     let maxThreat = 0;
     for (const p of state.players) {
-      if (p.id === botId) continue;
+      if (p.id === botId || p.finished || p.eliminated) continue;
       const oppDist = getDistanceToGoal(state, p.id);
       const clearLane = getClearLaneDistance(state, p.id);
       const threat =
@@ -240,7 +243,12 @@ function evaluate(state: GameState, botId: string): number {
   // FAST Panic: Only panic if the player acting *now* is 1 move away.
   // We use getDistanceToGoal instead of the slow legalMoves.
   const currentOpp = state.players[state.turnIndex];
-  if (currentOpp && currentOpp.id !== botId) {
+  if (
+    currentOpp &&
+    currentOpp.id !== botId &&
+    !currentOpp.finished &&
+    !currentOpp.eliminated
+  ) {
     if (getDistanceToGoal(state, currentOpp.id) <= 1) {
       score -= 500;
     }
@@ -330,7 +338,7 @@ function evaluateMoveDelta(
   const botDistBefore = getDistanceToGoal(state, botId);
   let minOppDistBefore = 999;
   for (const p of state.players) {
-    if (p.id !== botId) {
+    if (p.id !== botId && !p.finished && !p.eliminated) {
       const d = getDistanceToGoal(state, p.id);
       if (d < minOppDistBefore) minOppDistBefore = d;
     }
@@ -340,7 +348,7 @@ function evaluateMoveDelta(
   const botDistAfter = getDistanceToGoal(nextState, botId);
   let minOppDistAfter = 999;
   for (const p of nextState.players) {
-    if (p.id !== botId) {
+    if (p.id !== botId && !p.finished && !p.eliminated) {
       const d = getDistanceToGoal(nextState, p.id);
       if (d < minOppDistAfter) minOppDistAfter = d;
     }
@@ -374,7 +382,7 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   let nextPlayerThreat = false;
 
   for (const p of state.players) {
-    if (p.id !== botId) {
+    if (p.id !== botId && !p.finished && !p.eliminated) {
       if (getDistanceToGoal(state, p.id) <= 2) threatExists = true;
       if (p.id === nextPlayer?.id && getDistanceToGoal(state, p.id) <= 2)
         nextPlayerThreat = true;
@@ -385,7 +393,7 @@ export function getBestMove(state: GameState, timeLimit: number = 1500): Move {
   if (nextPlayerThreat) {
     const blockingMoves = moves.filter((move) => {
       const nextState = applyMove(state, move, true);
-      return !canOpponentWinFast(nextState, nextPlayer.id);
+      return !canOpponentWinFast(nextState, nextPlayer!.id);
     });
     if (blockingMoves.length > 0) {
       const scoredBlocks = blockingMoves.map((move) => ({

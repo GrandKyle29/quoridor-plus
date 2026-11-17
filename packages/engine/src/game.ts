@@ -126,6 +126,7 @@ export function buildInitialState(
     walls: [],
     turnIndex: 0,
     moveLog: [],
+    moveCount: 0,
     status: "active",
     winner: null,
     sharedWallsRemaining,
@@ -465,6 +466,7 @@ function copyState(state: GameState): GameState {
     walls: state.walls.map((w) => ({ ...w, coord: { ...w.coord } })),
     turnIndex: state.turnIndex,
     moveLog: [...state.moveLog],
+    moveCount: state.moveCount,
     status: state.status,
     winner: state.winner,
     sharedWallsRemaining: state.sharedWallsRemaining,
@@ -506,9 +508,10 @@ function getNextActivePlayerIndex(state: GameState): number {
   let idx = state.turnIndex;
   for (let i = 0; i < state.players.length; i++) {
     idx = (idx + 1) % state.players.length;
-    if (!state.players[idx]!.finished) return idx;
+    const player = state.players[idx]!;
+    if (!player.finished && !player.eliminated) return idx;
   }
-  return state.turnIndex; // fallback if everyone is finished (shouldn't happen)
+  return state.turnIndex; // fallback if everyone is out (shouldn't happen)
 }
 // Update checkWin to use the helper
 function checkWin(state: GameState, player: Player): boolean {
@@ -527,7 +530,60 @@ export function applyMove(
   if (move.kind === "skip") {
     const nextState = copyState(state);
     nextState.moveLog.push(move);
-    nextState.turnIndex = (nextState.turnIndex + 1) % nextState.players.length;
+    nextState.moveCount = (nextState.moveCount ?? 0) + 1;
+    nextState.turnIndex = getNextActivePlayerIndex(nextState);
+    return nextState;
+  }
+
+  // 2b. Eliminations are out-of-band events (a player left or was kicked),
+  // so they bypass turn validation like skips do.
+  if (move.kind === "eliminate") {
+    const nextState = copyState(state);
+    const targetIndex = nextState.players.findIndex(
+      (p) => p.id === move.playerId,
+    );
+    if (targetIndex === -1) throw new Error("Unknown player");
+    const target = nextState.players[targetIndex]!;
+    target.eliminated = true;
+    target.eliminationReason = move.reason ?? "left";
+    nextState.moveLog.push(move);
+    nextState.moveCount = (nextState.moveCount ?? 0) + 1;
+
+    const remaining = nextState.players.filter((p) => !p.eliminated);
+    const teams = nextState.config.teams;
+    const eliminatedTeam = teams?.[target.id];
+
+    // Team games: losing a player loses the game for that player's team.
+    if (teams && eliminatedTeam) {
+      const opponents = remaining.filter(
+        (p) => teams[p.id] !== eliminatedTeam,
+      );
+      nextState.status = "finished";
+      nextState.winner = opponents[0]?.id ?? null;
+      if (opponents[0]) {
+        nextState.turnIndex = nextState.players.findIndex(
+          (p) => p.id === opponents[0]!.id,
+        );
+      }
+      return nextState;
+    }
+
+    // Free-for-all: the last player standing wins.
+    if (remaining.length <= 1) {
+      nextState.status = "finished";
+      nextState.winner = remaining[0]?.id ?? null;
+      if (remaining[0]) {
+        nextState.turnIndex = nextState.players.findIndex(
+          (p) => p.id === remaining[0]!.id,
+        );
+      }
+      return nextState;
+    }
+
+    // If the eliminated player was up, hand the turn to the next live player.
+    if (targetIndex === nextState.turnIndex) {
+      nextState.turnIndex = getNextActivePlayerIndex(nextState);
+    }
     return nextState;
   }
 
@@ -575,6 +631,7 @@ export function applyMove(
 
   // 6. Log the move
   nextState.moveLog.push(move);
+  nextState.moveCount = (nextState.moveCount ?? 0) + 1;
 
   // 7. Did this move win the game?
   if (checkWin(nextState, currentPlayer)) {

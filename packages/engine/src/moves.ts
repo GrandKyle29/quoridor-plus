@@ -13,7 +13,10 @@ function isOnBoard(coord: Coord, boardSize: number): boolean {
 function getPlayerAt(state: GameState, coord: Coord) {
   return state.players.find(
     (p) =>
-      !p.eliminated && p.position.x === coord.x && p.position.y === coord.y,
+      !p.eliminated &&
+      !p.finished && // <-- NEW
+      p.position.x === coord.x &&
+      p.position.y === coord.y,
   );
 }
 
@@ -56,7 +59,10 @@ function isBlockedByWall(state: GameState, from: Coord, to: Coord): boolean {
 
 // BFS from a player's position to their goal (treating other players as passable).
 function canReachGoal(state: GameState, playerId: string): boolean {
-  const player = state.players.find((p) => p.id === playerId)!;
+  const player = state.players.find((p) => p.id === playerId);
+  // A pawn that is gone (eliminated) or already home must never make a wall
+  // placement illegal.
+  if (!player || player.eliminated || player.finished) return true;
   const { boardSize } = state.config;
 
   const queue: Coord[] = [player.position];
@@ -144,10 +150,11 @@ function isWallPlacementValid(state: GameState, newWall: Wall): boolean {
   }
 
   // 5. Pathfinding check
+  // 5. Pathfinding check
   if (state.config.mustNotBlockPath) {
     state.walls.push(newWall);
     const isTrapped = state.players.some(
-      (p) => !p.eliminated && !canReachGoal(state, p.id),
+      (p) => !p.eliminated && !p.finished && !canReachGoal(state, p.id), // <-- ADD !p.finished
     );
     state.walls.pop();
     if (isTrapped) return false;
@@ -257,7 +264,9 @@ function getChainJumps(state: GameState, start: Coord): Coord[] {
 
 export function legalMoves(state: GameState): Move[] {
   const moves: Move[] = [];
-  const currentPlayer = state.players[state.turnIndex]!;
+  const currentPlayer = state.players[state.turnIndex];
+  // No pawn on the board (or a malformed turn pointer) means nothing to play.
+  if (!currentPlayer || currentPlayer.eliminated) return moves;
   const boardSize = state.config.boardSize;
   const { x, y } = currentPlayer.position;
 

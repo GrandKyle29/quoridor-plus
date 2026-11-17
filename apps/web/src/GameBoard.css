@@ -101,7 +101,9 @@
   /* Smooth movement */
   transition:
     left 0.3s ease-in-out,
-    top 0.3s ease-in-out;
+    top 0.3s ease-in-out,
+    opacity 0.5s ease-out,
+    transform 0.5s ease-out;
 
   /* Make it slightly smaller than the tile, scaling from the center */
   transform: scale(0.8);

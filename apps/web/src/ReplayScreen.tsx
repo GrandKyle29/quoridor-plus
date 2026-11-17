@@ -29,16 +29,18 @@ export function ReplayScreen() {
       }
     }
   }, [shareCode]);
-  const nonSkipMoveIndices = useMemo(() => {
+  // Eliminations (someone left / was kicked) are bookkeeping, not turns, so
+  // they ride along with the next step instead of getting a slider tick.
+  const displayMoveIndices = useMemo(() => {
     if (!fullGame) return [];
     const result: number[] = [];
     fullGame.moveLog.forEach((move, i) => {
-      if (move.kind !== "skip") result.push(i);
+      if (move.kind !== "skip" && move.kind !== "eliminate") result.push(i);
     });
     return result;
   }, [fullGame]);
 
-  const totalDisplayMoves = nonSkipMoveIndices.length;
+  const totalDisplayMoves = displayMoveIndices.length;
   const displayStep = currentStep;
   // Build a fresh initial state using the engine's source of truth
   const buildFreshInitialState = (): GameState | null => {
@@ -63,7 +65,7 @@ export function ReplayScreen() {
     const targetInternal =
       displayStep === totalDisplayMoves
         ? fullGame.moveLog.length
-        : nonSkipMoveIndices[displayStep]!;
+        : displayMoveIndices[displayStep]!;
 
     if (!replayState) {
       let state = buildFreshInitialState()!;
@@ -94,7 +96,7 @@ export function ReplayScreen() {
     }
     setReplayState(state);
     setReplayStep(targetInternal);
-  }, [fullGame, displayStep, nonSkipMoveIndices, replayState, replayStep]);
+  }, [fullGame, displayStep, displayMoveIndices, replayState, replayStep]);
 
   // Auto-play timer
   useEffect(() => {
@@ -152,6 +154,12 @@ export function ReplayScreen() {
       <div style={{ textAlign: "center", marginTop: "100px", color: "white" }}>
         <h2>Replay Viewer</h2>
         <p>Paste a share code below to view the replay.</p>
+        {shareCode && (
+          <p style={{ color: "#f87171" }}>
+            That share code could not be replayed — its move log is
+            inconsistent. (Details in the console.)
+          </p>
+        )}
         <input
           type="text"
           placeholder="Paste share code here"

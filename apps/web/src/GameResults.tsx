@@ -6,6 +6,7 @@ const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 export function GameResults({ state }: { state: GameState }) {
   // Calculate distance for each player
   const results = state.players
+    .filter((player) => !player.eliminated)
     .map((player, turnOrder) => ({
       player,
       turnOrder,

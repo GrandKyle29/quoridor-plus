@@ -28,6 +28,7 @@ interface GameBoardProps {
   //onForceSkipTurn?: () => void;
   hideTurnHeader?: boolean;
   onKickPlayer?: (playerName: string) => void;
+  onResign?: () => void;
   createdAt?: string; // <-- NEW (optional)
 }
 
@@ -66,6 +67,7 @@ export function GameBoard({
   onShareReplay,
   isSharingReplay = false,
   onKickPlayer,
+  onResign,
   hideTurnHeader = false,
   createdAt, // <-- NEW
   //onKickPlayer={kickFromGame}
@@ -104,6 +106,17 @@ export function GameBoard({
       : onlinePlayers.some((p: any) => p.name === currentTurnPlayer.name);
   const canKick =
     isOnline && isHost && currentDisconnected && currentStillInRoom;
+  const localPlayer =
+    isOnline && localPlayerId
+      ? state?.players.find((p) => p.id === localPlayerId)
+      : undefined;
+  const canResign =
+    isOnline &&
+    !hideTurnHeader &&
+    state?.status === "active" &&
+    !!onResign &&
+    !!localPlayer &&
+    !localPlayer.eliminated;
   const [showSettings, setShowSettings] = useState(false);
 
   // --- MOVE CONFIRMATION ---
@@ -162,7 +175,9 @@ export function GameBoard({
     audio.volume = 0.5;
     audio.play().catch((e) => console.log("Audio play failed:", e));
   };
-
+  const [fadingPlayers, setFadingPlayers] = useState<
+    Record<string, "fading" | "gone">
+  >({});
   const prevMoveCount = useRef(0);
   const prevStatus = useRef(state?.status);
 
@@ -192,6 +207,68 @@ export function GameBoard({
     }
     prevStatus.current = state.status;
   }, [state]);
+  // Only team games with the "all must finish" condition pull finished pawns off
+  // the board (the result is shown by who is left standing). Everywhere else a
+  // finished pawn stays on its goal square, so it's obvious who got home.
+  const fadeFinishedPawns =
+    !!state?.config?.teams && state?.config?.teamWinCondition === "all";
+
+  // Animate finished players out: they stay rendered briefly, then disappear.
+  useEffect(() => {
+    if (!state) return;
+
+    if (!fadeFinishedPawns) {
+      // Keep finished pawns visible; drop any fade entries left over.
+      setFadingPlayers((prev) => (Object.keys(prev).length ? {} : prev));
+      return;
+    }
+
+    const finishedIds = new Set(
+      state.players.filter((p) => p.finished).map((p) => p.id),
+    );
+
+    // Remove fading entries for players who are no longer finished.
+    // (Happens when scrubbing backward in a replay.)
+    setFadingPlayers((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of Object.keys(next)) {
+        if (!finishedIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    // Add newly-finished players as "fading".
+    const newlyFinished = state.players
+      .filter((p) => p.finished && !(p.id in fadingPlayers))
+      .map((p) => p.id);
+
+    if (newlyFinished.length === 0) return;
+
+    setFadingPlayers((prev) => {
+      const next = { ...prev };
+      for (const id of newlyFinished) {
+        if (!(id in next)) next[id] = "fading";
+      }
+      return next;
+    });
+
+    const timer = window.setTimeout(() => {
+      setFadingPlayers((prev) => {
+        const next = { ...prev };
+        for (const id of newlyFinished) {
+          if (next[id] === "fading") next[id] = "gone";
+        }
+        return next;
+      });
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.players.map((p) => `${p.id}:${p.finished}`).join(","), fadeFinishedPawns]);
   // Team colors are derived from the first player (in turn order) of each team.
   // This makes team identity stable and avoids conflicts with player colors.
   const teamColors = (() => {
@@ -311,13 +388,13 @@ export function GameBoard({
               const teams = state.config.teams;
 
               if (!teams || !winner) {
-                return `Game Over! ${winner?.name ?? "Someone"} wins!`;
+                return winner ? `Game Over! ${winner.name} wins!` : "Game Over!";
               }
 
               // Team mode
               const winnerTeam = teams[winner.id];
               const teammates = state.players
-                .filter((p) => teams[p.id] === winnerTeam)
+                .filter((p) => teams[p.id] === winnerTeam && !p.eliminated)
                 .map((p) => p.name);
 
               return `Game Over! Team ${winnerTeam} wins! (${teammates.join(", ")})`;
@@ -467,7 +544,10 @@ export function GameBoard({
                   let headerText = "Your Turn";
                   let headerColor = "#4ade80";
 
-                  if (!isMyTurn && currentPlayer) {
+                  if (localPlayer?.eliminated) {
+                    headerText = "Spectating";
+                    headerColor = "#ccc";
+                  } else if (!isMyTurn && currentPlayer) {
                     if (currentDisconnected) {
                       headerText = `${currentPlayer.name} disconnected...`;
                       headerColor = "#ef4444";
@@ -527,6 +607,22 @@ export function GameBoard({
                       }}
                     >
                       Reset Game
+                    </button>
+                  )}
+                  {canResign && (
+                    <button
+                      onClick={onResign}
+                      style={{
+                        padding: "6px 12px",
+                        backgroundColor: "#eab308",
+                        color: "#1f2937",
+                        fontWeight: "bold",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Resign
                     </button>
                   )}
                   {onLeave && (
@@ -738,7 +834,22 @@ export function GameBoard({
               const leftRoom = onlinePlayers
                 ? !onlinePlayers.some((op: any) => op.name === p.name)
                 : false;
+              const isOut = p.eliminated || leftRoom;
+              // A resigned player is still in the room: strike the card but
+              // don't dim it. Leaving / being kicked gets both treatments.
+              const isGone =
+                leftRoom ||
+                (p.eliminated && p.eliminationReason !== "resigned");
               const team = state.config.teams?.[p.id]; // ← fixed
+              const winnerTeam =
+                state.winner !== null
+                  ? state.config.teams?.[state.winner]
+                  : undefined;
+              const isOnWinningTeam =
+                state.status === "finished" &&
+                !!team &&
+                !!winnerTeam &&
+                team === winnerTeam;
               /*const teamRing =
                 team === "A"
                   ? teamColors.A
@@ -768,8 +879,8 @@ export function GameBoard({
                         ? `2px solid ${disconnected ? "#ef4444" : "#4ade80"}`
                         : "none",
                     outlineOffset: "-2px",
-                    opacity: disconnected || leftRoom ? 0.5 : 1,
-                    textDecoration: leftRoom ? "line-through" : "none",
+                    opacity: disconnected || isGone ? 0.5 : 1,
+                    textDecoration: isOut ? "line-through" : "none",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
@@ -801,7 +912,7 @@ export function GameBoard({
                       }}
                     >
                       {p.name}
-                      {isFinishedInTeamAllMode && (
+                      {(isFinishedInTeamAllMode || isOnWinningTeam) && (
                         <span style={{ color: "#4ade80", marginLeft: "4px" }}>
                           ✓
                         </span>
@@ -818,7 +929,13 @@ export function GameBoard({
                     >
                       {isFinishedInTeamAllMode
                         ? "Finished!"
-                        : `Walls: ${p.wallsRemaining}`}
+                        : isOnWinningTeam
+                          ? "Winner!"
+                          : isOut
+                            ? p.eliminationReason === "resigned"
+                              ? "Resigned"
+                              : "Left"
+                            : `Walls: ${p.wallsRemaining}`}
                     </div>
                   )}
                 </div>
@@ -1275,7 +1392,19 @@ export function GameBoard({
           })}
 
           {/* 4. Animated Players */}
+          {/* 4. Animated Players */}
           {state.players.map((player) => {
+            // A player who left or was kicked has no pawn on the board.
+            if (player.eliminated) return null;
+            const fadeState = fadingPlayers[player.id];
+            if (fadeState === "gone") return null;
+
+            // If finished but not yet in the fading map (first render after finish),
+            // we still want to show the pawn for one frame at its final position
+            // before the fade effect kicks in. The effect sets it to "fading" on the
+            // next tick, so this fallback just prevents a 1-frame blink.
+            //if (player.finished && !fadeState) return null;
+
             const pIndex = parseInt(player.id.replace("p", ""));
             const color = player.color || DEFAULT_COLORS[pIndex];
             const team = state.config.teams?.[player.id];
@@ -1286,16 +1415,12 @@ export function GameBoard({
                   ? (teamColors.B ?? "#ef4444")
                   : undefined;
 
-            // Set your desired inward ring thickness here
-            const ringThickness = 6; // e.g., 6px inward
-
-            const shouldDim =
-              state.config.teams &&
-              state.config.teamWinCondition === "all" &&
-              player.finished === true;
+            const ringThickness = 6;
 
             const xPos = `calc(var(--padding) + ${player.position.x} * (var(--tile-size) + var(--gap-size)))`;
             const yPos = `calc(var(--padding) + ${boardSize - 1 - player.position.y} * (var(--tile-size) + var(--gap-size)))`;
+
+            const isFading = fadeState === "fading";
 
             return (
               <div
@@ -1305,11 +1430,13 @@ export function GameBoard({
                   left: xPos,
                   top: yPos,
                   backgroundColor: color,
-                  // 'inset' draws the ring inside the piece; the second shadow keeps the outer drop shadow
                   boxShadow: teamRing
                     ? `inset 0 0 0 ${ringThickness}px ${teamRing}, 0 2px 4px rgba(0,0,0,0.4)`
                     : "0 2px 4px rgba(0,0,0,0.4)",
-                  opacity: shouldDim ? 0.4 : 1,
+                  opacity: isFading ? 0 : 1,
+                  transform: isFading ? "scale(0.4)" : "scale(0.8)",
+                  transition:
+                    "left 0.3s ease-in-out, top 0.3s ease-in-out, opacity 0.5s ease-out, transform 0.5s ease-out",
                 }}
               />
             );
@@ -1319,7 +1446,8 @@ export function GameBoard({
 
       {/* CONFIRM BAR */}
 
-      {pendingMove && pendingMove.kind !== "skip" && (
+      {pendingMove &&
+        (pendingMove.kind === "move" || pendingMove.kind === "wall") && (
         <div
           style={{
             position: "fixed",
