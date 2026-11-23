@@ -5,29 +5,72 @@ import type { GameState } from "@quoridor/engine";
 import { GameBoard } from "./GameBoard";
 import { decodeShareCode } from "./shareCode";
 
+// Moves per second offered by the playback speed picker.
+const PLAYBACK_SPEEDS = [1, 2, 4];
+
 export function ReplayScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [shareCode, setShareCode] = useState(searchParams.get("code") || "");
   const [fullGame, setFullGame] = useState<GameState | null>(null);
+  const [loadStatus, setLoadStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >(shareCode ? "loading" : "idle");
   const [currentStep, setCurrentStep] = useState(0);
   const [replayState, setReplayState] = useState<GameState | null>(null);
   const [replayStep, setReplayStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const playTimer = useRef<number | null>(null);
 
-  // Load game from share code
+  // Load game from share code. Decoding replays the whole move log, which can
+  // take a while, so it is deferred by a tick to let the loading state paint —
+  // otherwise the "could not be replayed" message shows while a valid code is
+  // still being decoded.
   useEffect(() => {
-    if (shareCode) {
-      const game = decodeShareCode(shareCode);
-      if (game) {
-        setFullGame(game);
-        setCurrentStep(game.moveLog.length);
-        setReplayState(null);
-        setReplayStep(0);
-        setIsPlaying(false);
-      }
+    if (!shareCode) {
+      setLoadStatus("idle");
+      setFullGame(null);
+      return;
     }
+
+    let cancelled = false;
+    let timer: number | null = null;
+    setLoadStatus("loading");
+    setFullGame(null);
+
+    const run = () => {
+      if (cancelled) return;
+      const game = decodeShareCode(shareCode);
+      if (cancelled) return;
+      if (!game) {
+        setLoadStatus("error");
+        return;
+      }
+      // decodeShareCode already returns the state at the end of the log, so
+      // start from it instead of replaying the whole log a second time: the
+      // scrub effect then finds step === target and applies nothing.
+      const lastDisplayStep = game.moveLog.filter(
+        (m) => m.kind !== "skip" && m.kind !== "eliminate",
+      ).length;
+      setFullGame(game);
+      setCurrentStep(lastDisplayStep);
+      setReplayState(game);
+      setReplayStep(game.moveLog.length);
+      setIsPlaying(false);
+      setLoadStatus("ready");
+    };
+
+    // Let the loading render land before the blocking decode runs.
+    const frame = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(run, 0);
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, [shareCode]);
   // Eliminations (someone left / was kicked) are bookkeeping, not turns, so
   // they ride along with the next step instead of getting a slider tick.
@@ -112,7 +155,7 @@ export function ReplayScreen() {
       });
     };
 
-    const delay = 500;
+    const delay = 1000 / speed;
     playTimer.current = window.setInterval(tick, delay);
 
     return () => {
@@ -121,7 +164,7 @@ export function ReplayScreen() {
         playTimer.current = null;
       }
     };
-  }, [isPlaying, fullGame]);
+  }, [isPlaying, fullGame, speed]);
 
   // Stop playback if we reach the end manually
   useEffect(() => {
@@ -149,12 +192,16 @@ export function ReplayScreen() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [fullGame]);
 
-  if (!shareCode || !fullGame) {
+  if (!fullGame) {
     return (
       <div style={{ textAlign: "center", marginTop: "100px", color: "white" }}>
         <h2>Replay Viewer</h2>
-        <p>Paste a share code below to view the replay.</p>
-        {shareCode && (
+        {loadStatus === "loading" || loadStatus === "ready" ? (
+          <p style={{ color: "#ccc" }}>Loading replay…</p>
+        ) : (
+          <p>Paste a share code below to view the replay.</p>
+        )}
+        {loadStatus === "error" && (
           <p style={{ color: "#f87171" }}>
             That share code could not be replayed — its move log is
             inconsistent. (Details in the console.)
@@ -313,6 +360,42 @@ export function ReplayScreen() {
         >
           ⏭
         </button>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "6px",
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: "8px",
+          fontSize: "14px",
+          color: "#888",
+        }}
+      >
+        <span style={{ marginRight: "4px" }}>Speed</span>
+        {PLAYBACK_SPEEDS.map((option) => {
+          const selected = speed === option;
+          return (
+            <button
+              key={option}
+              onClick={() => setSpeed(option)}
+              title={`${option} move${option === 1 ? "" : "s"} per second`}
+              style={{
+                padding: "4px 12px",
+                backgroundColor: selected ? "#3b82f6" : "#4b5563",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: selected ? "bold" : "normal",
+              }}
+            >
+              {option}x
+            </button>
+          );
+        })}
       </div>
 
       <p style={{ fontSize: "12px", color: "#888", marginBottom: "20px" }}>

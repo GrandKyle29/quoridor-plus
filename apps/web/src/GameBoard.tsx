@@ -329,17 +329,24 @@ export function GameBoard({
   // --- SAFE TO RENDER ---
   const { boardSize } = state.config;
 
+  // Scanning for legal moves validates every wall candidate with a pathfinding
+  // check: ~11ms on a 9x9 board while walls remain in the pool, and effectively
+  // free once they run out. Only the player whose turn it is can use the result
+  // (replays and waiting turns filter it all away), so skip the scan then — it
+  // ran on every render and made replay playback stutter until walls ran out.
   let currentMoves: Move[] = [];
-  try {
-    currentMoves = legalMoves(state);
-  } catch (err) {
-    console.error("🚨 legalMoves threw:", err);
-    return (
-      <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
-        <h2>🚨 legalMoves crashed</h2>
-        <button onClick={() => window.location.reload()}>Reload</button>
-      </div>
-    );
+  if (isMyTurn) {
+    try {
+      currentMoves = legalMoves(state);
+    } catch (err) {
+      console.error("🚨 legalMoves threw:", err);
+      return (
+        <div style={{ color: "white", padding: "20px", textAlign: "center" }}>
+          <h2>🚨 legalMoves crashed</h2>
+          <button onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      );
+    }
   }
 
   const validPawnMoves = isMyTurn

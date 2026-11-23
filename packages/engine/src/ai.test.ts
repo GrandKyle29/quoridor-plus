@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createGame, legalMoves } from "./index";
 import { evaluate, evaluateMoveDelta, getBestMove } from "./ai";
+import { applyMove } from "./game";
 import type { GameConfig } from "./config";
 import type { GameState } from "./state";
 import type { Move } from "./types";
@@ -38,6 +39,13 @@ function withWinner(state: GameState, winner: string): GameState {
 function movePlayer(state: GameState, id: string, y: number) {
   const player = state.players.find((p) => p.id === id)!;
   player.position = { x: player.position.x, y };
+}
+
+// Did this move put the bot home? A finish is not always the tile straight
+// ahead: a pawn on the goal tile can be jumped. What matters is that it arrives.
+function expectFinishes(state: GameState, move: Move, id = "p0") {
+  const next = applyMove(state, move, true);
+  expect(next.players.find((p) => p.id === id)?.finished).toBe(true);
 }
 
 describe("bot team awareness", () => {
@@ -91,13 +99,88 @@ describe("bot team awareness", () => {
     expect(evaluateMoveDelta(state, finish, "p0")).toBeGreaterThan(0);
 
     const move = getBestMove(state, 400, 11);
-    expect(move).toMatchObject({ kind: "move", to: { x: 0, y: 8 } });
+    // While the teammate is still near the start the bot is allowed to hold on
+    // the line for wall turns, but it must never step away from the doorstep.
+    if (move.kind === "move") expect(move.to).toMatchObject({ x: 0, y: 8 });
+  });
+
+  it("holds its walls back at the start of an all-must-finish game", () => {
+    // Once the enemy's slowest pawn is the threat anchor, many walls look
+    // profitable from the first turn. A wall has to buy real enemy clock before
+    // it is worth playing, so the opening turns are pawn moves.
+    for (const seed of [3, 42]) {
+      const move = getBestMove(teamGame("all"), 300, seed);
+      expect(move.kind).toBe("move");
+    }
+  });
+
+  it("holds a pawn on the line for wall turns while its laggard is far back", () => {
+    // Team A's p0 has arrived at the doorstep while its teammate p2 still has
+    // the board to cross. Crossing now would retire one of the two wall layers
+    // team A has left, so it should stand on the line and place a wall instead.
+    const state = teamGame("all");
+    state.players[0]!.position = { x: 3, y: 7 }; // one step from team A's goal
+    state.players[2]!.position = { x: 5, y: 3 }; // the laggard, 5 away
+    state.players[1]!.position = { x: 3, y: 4 };
+    state.players[3]!.position = { x: 5, y: 5 };
+    state.turnIndex = 0;
+
+    const move = getBestMove(state, 400, 7);
+    expect(move.kind).toBe("wall");
+  });
+
+  it("finishes instead of waiting once the team is ready to close out", () => {
+    // Both of team A's pawns are on the doorstep: waiting now only delays the
+    // win, so the pawn walks in rather than looking for another wall.
+    const state = teamGame("all");
+    state.players[0]!.position = { x: 3, y: 7 };
+    state.players[2]!.position = { x: 5, y: 7 };
+    state.turnIndex = 0;
+
+    expectFinishes(state, getBestMove(state, 400, 7));
+  });
+
+  it("does not wait on the line without a wall to place", () => {
+    const state = teamGame("all");
+    state.players[0]!.position = { x: 3, y: 7 };
+    state.players[2]!.position = { x: 5, y: 3 };
+    state.players[1]!.position = { x: 3, y: 4 };
+    state.players[3]!.position = { x: 5, y: 5 };
+    state.players[0]!.wallsRemaining = 0;
+    state.turnIndex = 0;
+
+    expectFinishes(state, getBestMove(state, 400, 7));
+  });
+
+  it("walks in when it is the last pawn its team is waiting for", () => {
+    const state = teamGame("all");
+    state.players[2]!.finished = true;
+    state.players[0]!.position = { x: 3, y: 7 };
+    state.turnIndex = 0;
+
+    expectFinishes(state, getBestMove(state, 400, 7));
+  });
+
+  it("does not panic about a lone enemy on the line while its laggard is far back", () => {
+    const state = teamGame("all");
+    movePlayer(state, "p3", 1); // one move from team B's goal, and it is on the move
+    // Team B's other pawn is still on the far edge: that pawn arriving does not
+    // finish the game, so there is nothing to panic about and nothing to block.
+    const enemyToMove: GameState = { ...state, turnIndex: 3 };
+    const allyToMove: GameState = { ...state, turnIndex: 2 };
+
+    expect(evaluate(enemyToMove, "p0")).toBeCloseTo(
+      evaluate(allyToMove, "p0"),
+    );
   });
 
   it("does not panic about a teammate who is about to win", () => {
     const state = teamGame("all");
     // Team A (p0/p2) finishes on the far edge, team B (p1/p3) on the near edge.
     movePlayer(state, "p2", 7); // one move from team A's goal
+    // Both of team B's pawns are on the line, so team B's clock really is about
+    // to run out and the panic penalty belongs on p3's turn.
+    movePlayer(state, "p1", 1);
     movePlayer(state, "p3", 1); // one move from team B's goal
 
     const allyToMove: GameState = { ...state, turnIndex: 2 };
@@ -111,6 +194,33 @@ describe("bot team awareness", () => {
 });
 
 describe("bot randomness", () => {
+  it("does not pace back and forth between two tiles", () => {
+    // Two routes of the same length leave the search with nothing to separate
+    // the moves, and settling that with a dice roll every turn made a bot
+    // alternate between two neighbouring tiles. Here the other side only skips,
+    // so the board cannot change under the bot and every step back onto the tile
+    // it just left is its own doing.
+    let state = createGame({ ...baseConfig, maxPlayers: 2 }, ["You", "Bot 1"]);
+    const trail = [{ ...state.players[0]!.position }];
+
+    for (let turn = 0; turn < 12 && state.status === "active"; turn++) {
+      state = applyMove(state, getBestMove(state, 40, 5), true);
+      trail.push({ ...state.players[0]!.position });
+      if (state.status !== "active") break;
+      state = applyMove(state, { kind: "skip" }, true);
+    }
+
+    // A wall turn keeps the pawn where it is, so only compare steps taken.
+    const steps = trail.filter(
+      (pos, i) => i === 0 || pos.x !== trail[i - 1]!.x || pos.y !== trail[i - 1]!.y,
+    );
+    const reversals = steps.filter(
+      (pos, i) => i >= 2 && pos.x === steps[i - 2]!.x && pos.y === steps[i - 2]!.y,
+    );
+
+    expect(reversals).toHaveLength(0);
+  });
+
   it("never plays a wall that slows nobody while it can advance", () => {
     const state = createGame({ ...baseConfig, maxPlayers: 2 }, [
       "You",
