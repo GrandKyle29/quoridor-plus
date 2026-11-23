@@ -10,6 +10,7 @@ export type GameState = {
   moveCount?: number; // monotonic count of applied moves (replay ordering)
   status: "lobby" | "active" | "finished";
   winner: PlayerId | null;
+  finishOrder?: PlayerId[]; // ids in the order they reached their goal
   sharedWallsRemaining?: number; // <-- ADD this, only used when wallPool === "shared"
   sharedWallsPerTeam?: { A: number; B: number }; // <-- ADD
   createdAt?: string; // <-- NEW: ISO timestamp set at game creation

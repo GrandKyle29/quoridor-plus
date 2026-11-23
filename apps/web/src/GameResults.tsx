@@ -4,6 +4,19 @@ import type { GameState } from "@quoridor/engine";
 const DEFAULT_COLORS = ["#3b82f6", "#ef4444", "#eab308", "#22c55e"];
 
 export function GameResults({ state }: { state: GameState }) {
+  const teams = state.config.teams;
+  const winnerTeam = teams && state.winner ? teams[state.winner] : undefined;
+  // "All must finish": every member of the winning team crossed the line, so a
+  // single-player highlight would point at whoever happened to finish last.
+  // Highlight the whole team instead and rank by who finished first.
+  const isTeamAllMode =
+    !!winnerTeam && (state.config.teamWinCondition ?? "all") === "all";
+  const finishOrder = state.finishOrder ?? [];
+  const finishRank = (playerId: string) => {
+    const index = finishOrder.indexOf(playerId);
+    return index === -1 ? Number.POSITIVE_INFINITY : index;
+  };
+
   // Calculate distance for each player
   const results = state.players
     .filter((player) => !player.eliminated)
@@ -15,6 +28,14 @@ export function GameResults({ state }: { state: GameState }) {
         player.color || DEFAULT_COLORS[parseInt(player.id.replace("p", ""))],
     }))
     .sort((a, b) => {
+      // "All must finish" team games: whoever crossed the line first ranks first
+      if (isTeamAllMode) {
+        const rankA = finishRank(a.player.id);
+        const rankB = finishRank(b.player.id);
+        // Players not in the log (e.g. unfinished opponents) sort last, then
+        // fall back to the usual distance / turn-order comparison below.
+        if (rankA !== rankB) return rankA < rankB ? -1 : 1;
+      }
       // Primary: distance (ascending)
       if (a.distance !== b.distance) return a.distance - b.distance;
       // Secondary: turn order (who would have played next)
@@ -22,6 +43,24 @@ export function GameResults({ state }: { state: GameState }) {
     });
 
   const maxDistance = Math.max(...results.map((r) => r.distance), 1);
+
+  // Team mode: bars use the team colour so the team standings read at a
+  // glance (especially with "first to finish", where only one player actually
+  // won). Derived the same way as the board: each team takes its first
+  // member's colour. The dot keeps the player's own colour for identification.
+  const teamColors: { A?: string; B?: string } = {};
+  if (teams) {
+    for (const player of state.players) {
+      const team = teams[player.id];
+      if (!team) continue;
+      const color =
+        player.color ||
+        DEFAULT_COLORS[parseInt(player.id.replace("p", ""))] ||
+        "#888";
+      if (!teamColors[team]) teamColors[team] = color;
+      if (teamColors.A && teamColors.B) break;
+    }
+  }
 
   return (
     <div
@@ -38,7 +77,12 @@ export function GameResults({ state }: { state: GameState }) {
         Final Standings
       </h3>
       {results.map((r, i) => {
-        const isWinner = state.winner === r.player.id;
+        const team = teams?.[r.player.id];
+        // A whole team is highlighted once every one of its members finished.
+        const isWinner = isTeamAllMode
+          ? team === winnerTeam
+          : state.winner === r.player.id;
+        const barColor = (team && teamColors[team]) || r.color;
         // Bar length: closer to goal = longer bar
         const progress =
           maxDistance === 0 ? 1 : (maxDistance - r.distance) / maxDistance;
@@ -107,7 +151,7 @@ export function GameResults({ state }: { state: GameState }) {
                 style={{
                   width: `${barWidth}%`,
                   height: "100%",
-                  backgroundColor: r.color,
+                  backgroundColor: barColor,
                   transition: "width 0.3s ease-out",
                   opacity: isWinner ? 1 : 0.75,
                 }}

@@ -129,6 +129,7 @@ export function buildInitialState(
     moveCount: 0,
     status: "active",
     winner: null,
+    finishOrder: [],
     sharedWallsRemaining,
     sharedWallsPerTeam,
     createdAt: new Date().toISOString(), // <-- NEW
@@ -469,6 +470,7 @@ function copyState(state: GameState): GameState {
     moveCount: state.moveCount,
     status: state.status,
     winner: state.winner,
+    finishOrder: state.finishOrder ? [...state.finishOrder] : undefined,
     sharedWallsRemaining: state.sharedWallsRemaining,
     sharedWallsPerTeam: state.sharedWallsPerTeam
       ? { ...state.sharedWallsPerTeam }
@@ -504,12 +506,54 @@ export function isPlayerGoal(
 
   return false;
 }
+/**
+ * The order turns rotate through, as indices into state.players.
+ *
+ * "seat" (default) is the historical behaviour: p0 → p1 → … → p0.
+ *
+ * "alternating" interleaves the two team rosters in seat order (A1, B1, A2,
+ * B2, …) so consecutive turns belong to different teams. When the teams are
+ * uneven the larger team's spare player goes last, which puts the single
+ * unavoidable same-team pair at the wrap (last → first).
+ *
+ * This only decides whose turn it is: spawns are computed from team membership,
+ * so teammates still start on the same side / in the same diamond.
+ */
+export function getTurnRing(state: GameState): number[] {
+  const seatRing = state.players.map((_, index) => index);
+  const teams = state.config.teams;
+  if (!teams || state.config.teamTurnOrder !== "alternating") return seatRing;
+
+  const roster: { A: number[]; B: number[] } = { A: [], B: [] };
+  const unassigned: number[] = [];
+  state.players.forEach((player, index) => {
+    const team = teams[player.id];
+    if (team === "A" || team === "B") roster[team].push(index);
+    else unassigned.push(index);
+  });
+
+  const ring: number[] = [];
+  const laps = Math.max(roster.A.length, roster.B.length);
+  for (let i = 0; i < laps; i++) {
+    const a = roster.A[i];
+    const b = roster.B[i];
+    if (a !== undefined) ring.push(a);
+    if (b !== undefined) ring.push(b);
+  }
+  // Shouldn't happen in team mode, but never drop a player from the rotation.
+  ring.push(...unassigned);
+  return ring;
+}
+
 function getNextActivePlayerIndex(state: GameState): number {
-  let idx = state.turnIndex;
-  for (let i = 0; i < state.players.length; i++) {
-    idx = (idx + 1) % state.players.length;
-    const player = state.players[idx]!;
-    if (!player.finished && !player.eliminated) return idx;
+  const ring = getTurnRing(state);
+  const start = ring.indexOf(state.turnIndex);
+  if (start === -1) return state.turnIndex; // not in the rotation (shouldn't happen)
+
+  for (let i = 1; i <= ring.length; i++) {
+    const index = ring[(start + i) % ring.length]!;
+    const player = state.players[index]!;
+    if (!player.finished && !player.eliminated) return index;
   }
   return state.turnIndex; // fallback if everyone is out (shouldn't happen)
 }
@@ -636,6 +680,12 @@ export function applyMove(
   // 7. Did this move win the game?
   if (checkWin(nextState, currentPlayer)) {
     currentPlayer.finished = true;
+    // Track completion order: "all must finish" team games end on the last
+    // teammate to cross the line, so the UI needs to know who finished first.
+    nextState.finishOrder = [
+      ...(nextState.finishOrder ?? []),
+      currentPlayer.id,
+    ];
 
     if (nextState.config.teams) {
       const team = nextState.config.teams[currentPlayer.id];

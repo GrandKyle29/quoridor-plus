@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useGame } from "./useGame";
-import { legalMoves } from "@quoridor/engine";
+import { getTurnRing, legalMoves } from "@quoridor/engine";
 import type { GameState, Move, GameConfig } from "@quoridor/engine";
 import "./GameBoard.css";
 import { encodeShareCode } from "./shareCode";
@@ -96,6 +96,10 @@ export function GameBoard({
     if (!onlinePlayer.last_ping) return false;
     return Date.now() - onlinePlayer.last_ping > 25000;
   };
+  // Player cards are listed in turn order, left to right, row by row. This is
+  // seat order for most games, but team games with an interleaved turn ring
+  // would otherwise show the cards in a different order than play proceeds.
+  const cardOrder = state ? getTurnRing(state) : [];
   const currentTurnPlayer = state?.players[state?.turnIndex ?? 0];
   const currentDisconnected = currentTurnPlayer
     ? isDisconnected(currentTurnPlayer.name)
@@ -393,18 +397,49 @@ export function GameBoard({
             {(() => {
               const winner = state.players.find((p) => p.id === state.winner);
               const teams = state.config.teams;
+              // Each name is shown in the player's own pawn colour, and the
+              // team label in that team's colour (first team member's colour).
+              const colorOf = (player: (typeof state.players)[number]) =>
+                player.color ||
+                DEFAULT_COLORS[parseInt(player.id.replace("p", ""))] ||
+                "#888";
 
               if (!teams || !winner) {
-                return winner ? `Game Over! ${winner.name} wins!` : "Game Over!";
+                return winner ? (
+                  <>
+                    Game Over!{" "}
+                    <span style={{ color: colorOf(winner) }}>
+                      {winner.name}
+                    </span>{" "}
+                    wins!
+                  </>
+                ) : (
+                  "Game Over!"
+                );
               }
 
               // Team mode
               const winnerTeam = teams[winner.id];
-              const teammates = state.players
-                .filter((p) => teams[p.id] === winnerTeam && !p.eliminated)
-                .map((p) => p.name);
+              const teamColor = winnerTeam
+                ? (teamColors[winnerTeam] ?? "#4ade80")
+                : "#4ade80";
+              const teammates = state.players.filter(
+                (p) => teams[p.id] === winnerTeam && !p.eliminated,
+              );
 
-              return `Game Over! Team ${winnerTeam} wins! (${teammates.join(", ")})`;
+              return (
+                <>
+                  Game Over! <span style={{ color: teamColor }}>Team {winnerTeam}</span>{" "}
+                  wins! (
+                  {teammates.map((p, index) => (
+                    <span key={p.id}>
+                      {index > 0 ? ", " : ""}
+                      <span style={{ color: colorOf(p) }}>{p.name}</span>
+                    </span>
+                  ))}
+                  )
+                </>
+              );
             })()}
           </h2>
 
@@ -836,7 +871,8 @@ export function GameBoard({
               maxWidth: "560px",
             }}
           >
-            {state.players.map((p, i) => {
+            {cardOrder.map((i) => {
+              const p = state.players[i]!;
               const disconnected = isDisconnected(p.name);
               const leftRoom = onlinePlayers
                 ? !onlinePlayers.some((op: any) => op.name === p.name)

@@ -204,6 +204,7 @@ export function WaitingRoom({
       useTeams: room.config?.useTeams === true,
       teamWinCondition: room.config?.teamWinCondition || "all",
       teams: room.config?.teams ?? {},
+      teamTurnOrder: "alternating",
     };
 
     let initialState;

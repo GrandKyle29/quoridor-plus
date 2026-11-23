@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createGame, legalMoves, applyMove } from "./index";
 import type { GameConfig } from "./config";
+import type { GameState } from "./state";
 import {
   isPlayerGoal,
   getTopRowStartPositions,
@@ -830,5 +831,235 @@ describe("Team assignment", () => {
     const bxs = teamB.map((p) => p.position.x).sort((a, b) => a - b);
     expect(bxs).toEqual([2, 4, 6]);
     expect(teamB.every((p) => p.position.y === 8)).toBe(true);
+  });
+});
+
+describe("team turn order", () => {
+  const names = (count: number) =>
+    Array.from({ length: count }, (_, i) => `P${i}`);
+
+  // Skips are always legal, so they let us walk the rotation without moving.
+  const walkTurns = (start: GameState, steps: number): string[] => {
+    const ids: string[] = [];
+    let state = start;
+    for (let i = 0; i < steps; i++) {
+      ids.push(state.players[state.turnIndex]!.id);
+      state = applyMove(state, { kind: "skip" });
+    }
+    return ids;
+  };
+
+  const teamPattern = (state: GameState, steps: number): string[] => {
+    const teams = state.config.teams!;
+    return walkTurns(state, steps).map((id) => teams[id]!);
+  };
+
+  // Seats deliberately clustered by team: seat order would be A,A,B,B.
+  const evenTeamsConfig: GameConfig = {
+    ...classicConfig,
+    randomizeSpawns: false,
+    useTeams: true,
+    maxPlayers: 4,
+    teams: { p0: "A", p1: "A", p2: "B", p3: "B" },
+    teamTurnOrder: "alternating",
+  };
+
+  const oddTeamsConfig: GameConfig = {
+    ...classicConfig,
+    randomizeSpawns: false,
+    useTeams: true,
+    maxPlayers: 5,
+    teams: { p0: "A", p1: "A", p2: "A", p3: "B", p4: "B" },
+    teamTurnOrder: "alternating",
+  };
+
+  it("alternates teams every turn in even lobbies", () => {
+    const state = createGame(evenTeamsConfig, names(4));
+    expect(walkTurns(state, 8)).toEqual([
+      "p0",
+      "p2",
+      "p1",
+      "p3",
+      "p0",
+      "p2",
+      "p1",
+      "p3",
+    ]);
+    expect(teamPattern(state, 8)).toEqual([
+      "A",
+      "B",
+      "A",
+      "B",
+      "A",
+      "B",
+      "A",
+      "B",
+    ]);
+  });
+
+  it("gives odd lobbies exactly one same-team pair per lap", () => {
+    const state = createGame(oddTeamsConfig, names(5));
+    const pattern = teamPattern(state, 10);
+    const lap = pattern.slice(0, 5);
+
+    // The team with the extra player is the one that gets doubled, at the wrap.
+    expect(lap.filter((t) => t === "A")).toHaveLength(3);
+    let sameTeamPairs = 0;
+    for (let i = 0; i < lap.length; i++) {
+      if (lap[i] === lap[(i + 1) % lap.length]) sameTeamPairs++;
+    }
+    expect(sameTeamPairs).toBe(1);
+
+    // Never three turns in a row for one team.
+    for (let i = 0; i + 2 < pattern.length; i++) {
+      expect(new Set(pattern.slice(i, i + 3)).size).toBeGreaterThan(1);
+    }
+  });
+
+  it("keeps seat order when the flag is absent or \"seat\"", () => {
+    const absent: GameConfig = { ...evenTeamsConfig };
+    delete absent.teamTurnOrder;
+    const explicit: GameConfig = { ...evenTeamsConfig, teamTurnOrder: "seat" };
+
+    for (const config of [absent, explicit]) {
+      const state = createGame(config, names(4));
+      expect(walkTurns(state, 8)).toEqual([
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+      ]);
+      expect(teamPattern(state, 4)).toEqual(["A", "A", "B", "B"]);
+    }
+  });
+
+  it("does nothing outside team games", () => {
+    const config: GameConfig = {
+      ...classicConfig,
+      randomizeSpawns: false,
+      teamTurnOrder: "alternating",
+    };
+    const state = createGame(config, names(4));
+    expect(walkTurns(state, 4)).toEqual(["p0", "p1", "p2", "p3"]);
+  });
+
+  it("skips finished players on the interleaved ring", () => {
+    const base = createGame(evenTeamsConfig, names(4));
+    const state: GameState = {
+      ...base,
+      turnIndex: 2, // p0 just finished, so the turn already passed on
+      players: base.players.map((p) =>
+        p.id === "p0" ? { ...p, finished: true } : p,
+      ),
+    };
+    expect(walkTurns(state, 6)).toEqual([
+      "p2",
+      "p1",
+      "p3",
+      "p2",
+      "p1",
+      "p3",
+    ]);
+  });
+
+  it("leaves spawns untouched", () => {
+    for (const goalCondition of ["opposite-edge", "center"] as const) {
+      const alternating: GameConfig = { ...oddTeamsConfig, goalCondition };
+      const seat: GameConfig = { ...alternating };
+      delete seat.teamTurnOrder;
+
+      const withRing = createGame(alternating, names(5));
+      const withoutRing = createGame(seat, names(5));
+      expect(withRing.players).toEqual(withoutRing.players);
+
+      // Teammates still start together: same side (opposite-edge) or the same
+      // half of the diamond (center).
+      const teams = withRing.config.teams!;
+      const teamA = withRing.players.filter((p) => teams[p.id] === "A");
+      const teamB = withRing.players.filter((p) => teams[p.id] === "B");
+      if (goalCondition === "opposite-edge") {
+        expect(teamA.every((p) => p.position.y === 0)).toBe(true);
+        expect(teamB.every((p) => p.position.y === 8)).toBe(true);
+      } else {
+        expect(teamA.every((p) => p.position.y < 4)).toBe(true);
+        expect(teamB.every((p) => p.position.y > 4)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("finish order", () => {
+  // Drops a player one step from their goal and walks them onto it, so a game
+  // can be driven to completion without depending on walls or pathing.
+  const finishPlayer = (state: GameState, index: number): GameState => {
+    const size = state.config.boardSize;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (!isPlayerGoal(state, index, { x, y })) continue;
+        const from = [
+          { x: x + 1, y },
+          { x: x - 1, y },
+          { x, y: y + 1 },
+          { x, y: y - 1 },
+        ].find(
+          (c) =>
+            c.x >= 0 &&
+            c.y >= 0 &&
+            c.x < size &&
+            c.y < size &&
+            !isPlayerGoal(state, index, c),
+        );
+        if (!from) continue;
+        const placed: GameState = {
+          ...state,
+          players: state.players.map((p, i) =>
+            i === index ? { ...p, position: from } : p,
+          ),
+        };
+        return applyMove(placed, { kind: "move", to: { x, y } }, true);
+      }
+    }
+    throw new Error(`no goal tile reachable for player ${index}`);
+  };
+
+  it("records players in the order they reach their goal", () => {
+    const state = createGame({ ...classicConfig, randomizeSpawns: false }, [
+      "Alice",
+      "Bob",
+    ]);
+    expect(state.finishOrder).toEqual([]);
+
+    const done = finishPlayer(state, 0);
+    expect(done.players[0]?.finished).toBe(true);
+    expect(done.finishOrder).toEqual(["p0"]);
+    expect(done.status).toBe("finished");
+    expect(done.winner).toBe("p0");
+  });
+
+  it("team \"all\" games end on a team's last finisher", () => {
+    const config: GameConfig = {
+      ...classicConfig,
+      randomizeSpawns: false,
+      useTeams: true,
+      maxPlayers: 4,
+      teams: { p0: "A", p1: "A", p2: "B", p3: "B" },
+      teamTurnOrder: "alternating",
+      teamWinCondition: "all",
+    };
+    let state = createGame(config, ["A1", "A2", "B1", "B2"]);
+    while (state.status === "active") {
+      state = finishPlayer(state, state.turnIndex);
+    }
+
+    // Ring order is p0, p2, p1, p3, so team A (p0, p1) completes first — and
+    // the recorded winner is p1, the last A member, not p0 who finished first.
+    expect(state.finishOrder).toEqual(["p0", "p2", "p1"]);
+    expect(state.config.teams?.[state.winner!]).toBe("A");
+    expect(state.players.find((p) => p.id === "p1")?.finished).toBe(true);
+    expect(state.players.find((p) => p.id === "p3")?.finished).toBe(false);
   });
 });

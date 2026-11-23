@@ -16,6 +16,7 @@ const classicConfig: GameConfig = {
   turnOrder: "clockwise",
   randomizeSpawns: true,
   lenientJumps: false,
+  teamTurnOrder: "alternating",
 };
 
 const PLACEHOLDER_STATE: GameState = {
