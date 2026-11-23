@@ -936,6 +936,7 @@ export function GameBoard({
                       alignItems: "center",
                       gap: "6px",
                       marginBottom: "4px",
+                      minWidth: 0,
                     }}
                   >
                     <div
@@ -947,20 +948,42 @@ export function GameBoard({
                         flexShrink: 0,
                       }}
                     />
+                    {/* The name shrinks and ellipsizes on its own so the status
+                        check never gets clipped by a long name. */}
                     <strong
                       style={{
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        minWidth: 0,
+                        flex: "0 1 auto",
                       }}
                     >
                       {p.name}
-                      {(isFinishedInTeamAllMode || isOnWinningTeam) && (
-                        <span style={{ color: "#4ade80", marginLeft: "4px" }}>
-                          ✓
-                        </span>
-                      )}
                     </strong>
+                    {(isFinishedInTeamAllMode || isOnWinningTeam) && (
+                      // Fixed 1em box with line-height 1: the ✓ glyph's own
+                      // metrics can't grow the row's line box, so cards don't
+                      // change height when the check appears.
+                      <span
+                        style={{
+                          color: "#4ade80",
+                          flexShrink: 0,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          alignSelf: "center",
+                          width: "1em",
+                          height: "1em",
+                          lineHeight: 1,
+                        }}
+                        title={
+                          isFinishedInTeamAllMode ? "Finished" : "Winner"
+                        }
+                      >
+                        ✓
+                      </span>
+                    )}
                   </div>
 
                   {state.config.wallPool === "per-player" && (
